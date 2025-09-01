@@ -1,0 +1,186 @@
+local M = {}
+local config = require('i18n.config')
+local parser = require('i18n.parser')
+local utils = require('i18n.utils')
+
+-- 命名空间
+local ns = vim.api.nvim_create_namespace('i18n_display')
+
+-- 提取国际化键
+local function extract_i18n_keys(line, patterns)
+  local keys = {}
+  for _, pattern in ipairs(patterns) do
+    -- 转义模式中的特殊字符并替换 %s
+    local escaped_pattern = pattern:gsub("([%(%)%.%%%+%-%*%?%[%]%^%$])", "%%%1")
+    escaped_pattern = escaped_pattern:gsub("%%s", "(.-)")
+
+    local pos = 1
+    while pos <= #line do
+      local start_pos, end_pos, key = line:find(escaped_pattern, pos)
+      vim.notify(
+        vim.log.levels.DEBUG)
+      if start_pos then
+        table.insert(keys, {
+          key = key,
+          start_pos = start_pos,
+          end_pos = end_pos
+        })
+        pos = end_pos + 1
+      else
+        break
+      end
+    end
+  end
+  return keys
+end
+
+-- 设置虚拟文本
+local function set_virtual_text(bufnr, line_num, col, text)
+  vim.api.nvim_buf_set_extmark(bufnr, ns, line_num, col, {
+    virt_text = { { text, "Comment" } },
+    virt_text_pos = "overlay",
+    hl_mode = "combine"
+  })
+end
+
+-- 刷新缓冲区显示
+M.refresh_buffer = function(bufnr)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+
+  -- 清除旧的虚拟文本
+  vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
+
+  if config.options.display ~= 'replace' then
+    return
+  end
+
+  local patterns = config.options.static.func_pattern
+  local default_lang = config.options.static.default_lang[1]
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+
+  for line_num, line in ipairs(lines) do
+    local keys = extract_i18n_keys(line, patterns)
+    for _, key_info in ipairs(keys) do
+      local translation = parser.get_translation(key_info.key, default_lang)
+      if translation then
+        -- 在键的位置显示翻译
+        set_virtual_text(bufnr, line_num - 1, key_info.start_pos - 1, translation)
+      end
+    end
+  end
+end
+
+-- 显示弹窗
+M.show_popup = function()
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  local line = vim.api.nvim_get_current_line()
+  local patterns = config.options.static.func_pattern
+
+  -- 提取当前行的国际化键
+  local keys = extract_i18n_keys(line, patterns)
+
+  -- 找到光标所在的键
+  local current_key = nil
+  for _, key_info in ipairs(keys) do
+    if cursor[2] >= key_info.start_pos - 1 and cursor[2] <= key_info.end_pos then
+      current_key = key_info.key
+      break
+    end
+  end
+
+  if not current_key then
+    vim.notify("No i18n key found at cursor position", vim.log.levels.WARN)
+    return
+  end
+
+  -- 获取所有翻译
+  local translations = parser.get_all_translations(current_key)
+  if vim.tbl_isempty(translations) then
+    vim.notify("No translations found for: " .. current_key, vim.log.levels.WARN)
+    return
+  end
+
+  -- 构建显示内容
+  local lines = { "Translations for: " .. current_key, "" }
+  for lang, text in pairs(translations) do
+    table.insert(lines, string.format("%s: %s", lang, text))
+  end
+
+  -- 创建浮动窗口
+  local width = 0
+  for _, line in ipairs(lines) do
+    width = math.max(width, #line)
+  end
+
+  local height = #lines
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+
+  local opts = {
+    relative = 'cursor',
+    width = width + 4,
+    height = height,
+    col = 0,
+    row = 1,
+    style = 'minimal',
+    border = 'rounded'
+  }
+
+  local win = vim.api.nvim_open_win(buf, false, opts)
+
+  -- 设置高亮
+  vim.api.nvim_buf_add_highlight(buf, -1, 'Title', 0, 0, -1)
+
+  -- 自动关闭
+  vim.defer_fn(function()
+    if vim.api.nvim_win_is_valid(win) then
+      vim.api.nvim_win_close(win, true)
+    end
+  end, 3000)
+
+  -- ESC 关闭
+  vim.api.nvim_buf_set_keymap(buf, 'n', '<Esc>', ':close<CR>', { noremap = true, silent = true })
+end
+
+-- 设置替换模式
+M.setup_replace_mode = function()
+  -- 自动命令组
+  local group = vim.api.nvim_create_augroup('I18nDisplay', { clear = true })
+
+  -- 文件打开时刷新
+  vim.api.nvim_create_autocmd({ 'BufEnter', 'BufWritePost' }, {
+    group = group,
+    pattern = { '*.vue', '*.js', '*.jsx', '*.ts', '*.tsx' },
+    callback = function(args)
+      M.refresh_buffer(args.buf)
+    end
+  })
+
+  -- 文本改变时刷新
+  vim.api.nvim_create_autocmd({ 'TextChanged', 'TextChangedI' }, {
+    group = group,
+    pattern = { '*.vue', '*.js', '*.jsx', '*.ts', '*.tsx' },
+    callback = function(args)
+      vim.defer_fn(function()
+        M.refresh_buffer(args.buf)
+      end, 100)
+    end
+  })
+end
+
+-- 设置弹窗模式
+M.setup_popup_mode = function()
+  -- 设置快捷键
+  vim.keymap.set('n', '<leader>it', M.show_popup, { desc = 'Show i18n translations' })
+end
+
+-- 刷新所有缓冲区
+M.refresh = function()
+  for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(bufnr) then
+      M.refresh_buffer(bufnr)
+    end
+  end
+end
+
+return M
