@@ -82,8 +82,9 @@ M.refresh_buffer = function(bufnr)
   for line_num, line in ipairs(lines) do
     local keys = extract_i18n_keys(line, patterns)
     for _, key_info in ipairs(keys) do
+      local translation = nil
       if config.options.show_translation then
-        local translation = parser.get_translation(key_info.key, default_lang)
+        translation = parser.get_translation(key_info.key, default_lang)
         if translation then
           -- 如果当前行为光标所在行，则不显示虚拟文本
           if not cursor_line or line_num ~= cursor_line then
@@ -92,8 +93,8 @@ M.refresh_buffer = function(bufnr)
         end
       end
 
-      -- 根据 show_origin 控制 key 及其引号的 conceal
-      if config.options.show_origin == false then
+      -- 只有找到译文并成功设置 virt_text 后，show_origin = false 才 conceal
+      if translation and config.options.show_origin == false then
         -- 只隐藏 key 及其引号，不隐藏函数名和括号
         -- 重新用正则查找本行内 key 的引号包裹范围
         -- 例如 $t('common.save') 只隐藏 'common.save'
