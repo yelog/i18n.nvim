@@ -31,19 +31,51 @@ end
 
 -- 解析 JS/TS 文件
 local function parse_js(content)
-  local result = {}
+  -- 递归解析对象字符串为扁平化 key-value
+  local function parse_object(str, prefix, tbl)
+    tbl = tbl or {}
+    prefix = prefix or ""
+    -- 匹配 key: value 或 key: { ... }
+    for key, value in str:gmatch('([%w_]+)%s*:%s*([^\n,{}]+)') do
+      -- 去除首尾空格和引号
+      key = key:gsub("^['\"]", ""):gsub("['\"]$", "")
+      value = value:gsub("^%s*", ""):gsub("%s*$", "")
+      if value:match("^{") then
+        -- 嵌套对象，递归
+        local nested = value:match("^{(.*)}$")
+        if nested then
+          parse_object(nested, prefix .. key .. ".", tbl)
+        end
+      else
+        value = value:gsub("^['\"]", ""):gsub("['\"]$", "")
+        tbl[prefix .. key] = value
+      end
+    end
+    -- 递归处理嵌套对象
+    for obj_key, obj_body in str:gmatch('([%w_]+)%s*:%s*{(.-)}') do
+      obj_key = obj_key:gsub("^['\"]", ""):gsub("['\"]$", "")
+      parse_object(obj_body, prefix .. obj_key .. ".", tbl)
+    end
+    return tbl
+  end
+
   -- 匹配 export default { ... } 或 module.exports = { ... }
-  local obj_content = content:match("export%s+default%s*{(.-)}")
-      or content:match("module%.exports%s*=%s*{(.-)}")
-      or content:match("export%s*{(.-)}")
+  local obj_content = content:match("export%s+default%s*{(.*)}%s*;?%s*$")
+      or content:match("module%.exports%s*=%s*{(.*)}%s*;?%s*$")
+      or content:match("export%s*{(.*)}%s*;?%s*$")
 
   if obj_content then
-    -- 简单解析对象内容
-    for key, value in obj_content:gmatch('["\']*([%w%.]+)["\']*%s*:%s*["\']([^"\']+)["\']') do
-      result[key] = value
+    -- 递归解析所有 key
+    local result = parse_object(obj_content)
+    -- 去除末尾的点
+    local clean_result = {}
+    for k, v in pairs(result) do
+      local clean_key = k:gsub("%.$", "")
+      clean_result[clean_key] = v
     end
+    return clean_result
   end
-  return result
+  return {}
 end
 
 -- 根据文件扩展名解析文件
@@ -74,6 +106,7 @@ local function deep_merge(t1, t2, prefix)
       t1[full_key] = t1[full_key] or {}
       deep_merge(t1, v, full_key .. ".")
     else
+      -- vim.notify("Merging key: " .. full_key .. " with value: " .. tostring(v))
       t1[full_key] = v
     end
   end
@@ -110,6 +143,7 @@ local function load_file_config(file_config, lang)
 
         if utils.file_exists(actual_file) then
           local data = parse_file(actual_file)
+          -- vim.notify("loading file: " .. actual_file .. ", data:" .. vim.inspect(data))
           if data then
             M.translations[lang] = M.translations[lang] or {}
             deep_merge(M.translations[lang], data, actual_prefix)
@@ -149,7 +183,7 @@ M.load_translations = function()
   end
 end
 
--- 获取翻
+-- 获取特定语言的翻译
 M.get_translation = function(key, lang)
   local langs = config.options.static.langs
   lang = lang or (langs and langs[1])
