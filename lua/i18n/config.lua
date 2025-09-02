@@ -5,11 +5,11 @@ M.defaults = {
   mode = 'static',
   static = {
     func_pattern = {
-      "t%('([^']-)'",
-      "%$t%('([^']-)'"
+      "t%(['\"]([^']-)['\"]",
+      "%$t%(['\"]([^']-)['\"]",
     },
     langs = { "en", "zh" },
-    default_lang = { "en" },
+    default_lang = { "zh" },
     files = {}
   }
 }
