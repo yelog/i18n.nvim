@@ -1,7 +1,6 @@
-local M = {}
-local config = require('i18n.config')
-local utils = require('i18n.utils')
-
+-- actual_prefix: src/views/qds/locales/lang/en_US/system.ts
+-- filepath: src/views/{bu}/locales/lang/en_US/{module}.ts
+-- prefix: {bu}.{module}.
 -- 存储所有翻译内容
 M.translations = {}
 
@@ -112,6 +111,130 @@ local function deep_merge(t1, t2, prefix)
   end
 end
 
+-- 递归扫描自定义变量
+local function scan_vars(pattern, vars, idx, cb)
+  -- vim.notify("Scanning pattern: " ..
+  --   pattern .. " with vars: " .. table.concat(vars, ", ") .. " at idx: " .. tostring(idx))
+  idx = idx or 1
+  if idx > #vars then
+    cb(pattern)
+    return
+  end
+  local var = vars[idx]
+  local before, after = pattern:match("^(.-){(" .. var .. ")}(.*)$")
+
+  -- vim.notify("Scanning pattern: " ..
+  --   pattern .. " for variable: " .. var .. "\nBefore: " .. tostring(before) .. "\nAfter: " .. tostring(after))
+  if not before then
+    -- 变量不在 pattern 中，递归下一个
+    scan_vars(pattern, vars, idx + 1, cb)
+    return
+  end
+  -- 获取变量所在目录
+  local dir = before:match("^(.-)/?$") or "."
+
+  -- 判断变量后是否直接跟着扩展名（如 .ts/.js/.json），如果是则扫描文件
+  -- 支持 {module}.ts 这种情况
+  local ext
+  -- 优先用 pattern 匹配 {var}.ext 形式
+  local ext_pattern = pattern:match("{" .. var .. "}%.([%w_]+)")
+  if ext_pattern then
+    ext = ext_pattern
+  else
+    -- 其次用 after 匹配 .ext 结尾
+    ext = after:match("%.([%w_]+)$")
+  end
+  if ext then
+    ext = "." .. ext
+    if utils.file_exists(dir) then
+      local subs = utils.scan_sub(dir, ext)
+      for _, sub in ipairs(subs) do
+        local sub_name = sub:gsub("%" .. ext .. "$", "")
+        local replaced = pattern:gsub("{" .. var .. "}", sub_name, 1)
+        scan_vars(replaced, vars, idx + 1, cb)
+      end
+    end
+    return
+  end
+
+  -- 如果 dir 不存在，且不是文件模式，直接返回
+  if not utils.file_exists(dir) then
+    return
+  end
+
+  -- 目录模式，递归子目录
+  local subs = utils.scan_sub(dir)
+  for _, sub in ipairs(subs) do
+    local replaced = pattern:gsub("{" .. var .. "}", sub, 1)
+    scan_vars(replaced, vars, idx + 1, cb)
+  end
+end
+
+-- 提取所有自定义变量（不包括 langs）
+local function extract_vars(str)
+  local vars = {}
+  for var in str:gmatch("{([%w_]+)}") do
+    if var ~= "langs" then
+      table.insert(vars, var)
+    end
+  end
+  return vars
+end
+
+-- actual_prefix: src/views/qds/locales/lang/en_US/system.ts
+-- filepath: src/views/{bu}/locales/lang/en_US/{module}.ts
+-- prefix: {bu}.{module}. -> qds.system.
+function fill_prefix(actual_file, filepath, prefix)
+    local prefix_vars = extract_vars(prefix)
+    
+    -- 创建一个更精确的匹配模式
+    local pattern = "^" .. filepath:gsub("([%.%-%+%*%?%[%]%(%)%^%$])", "%%%1"):gsub("{[^}]+}", "([^/]+)") .. "$"
+    
+    local matches = {actual_file:match(pattern)}
+    
+    -- 如果匹配失败，尝试更灵活的方法
+    if #matches == 0 then
+        -- 手动解析路径
+        local actual_segments = {}
+        local template_segments = {}
+        
+        for segment in actual_file:gmatch("[^/]+") do
+            table.insert(actual_segments, segment)
+        end
+        
+        for segment in filepath:gmatch("[^/]+") do
+            table.insert(template_segments, segment)
+        end
+        
+        local var_count = 1
+        for i, template_seg in ipairs(template_segments) do
+            if template_seg:match("^{[^}]+}$") then
+                if actual_segments[i] then
+                    local value = actual_segments[i]:gsub("%.ts$", "")
+                    matches[var_count] = value
+                    var_count = var_count + 1
+                end
+            end
+        end
+    else
+        -- 清理匹配结果（移除文件扩展名等）
+        for i, match in ipairs(matches) do
+            matches[i] = match:gsub("%.ts$", "")
+        end
+    end
+    
+    -- 替换 prefix 中的变量
+    local result = prefix
+    for i, var in ipairs(prefix_vars) do
+        if matches[i] then
+            result = result:gsub("{" .. var .. "}", matches[i])
+        end
+    end
+    
+    return result
+end
+
+
 -- 加载单个文件配置
 local function load_file_config(file_config, lang)
   local files_pattern = type(file_config) == "string" and file_config or file_config.files
@@ -119,38 +242,21 @@ local function load_file_config(file_config, lang)
 
   -- 替换 {langs} 占位符
   local filepath = files_pattern:gsub("{langs}", lang)
-  -- 如果有 {module} 占位符，需要扫描目录或文件
-  if filepath:match("{module}") then
-    -- 判断 {module} 后面是文件后缀还是 /
-    local ext = filepath:match("{module}%.([%w_]+)")
-    if ext then ext = "." .. ext end
-    local dir = filepath:match("^(.-)/[^/]*{module}")
-
-    if dir and utils.file_exists(dir) then
-      local modules = utils.scan_sub(dir, ext)
-      for _, module in ipairs(modules) do
-        local actual_file, actual_prefix
-        if ext then
-          -- 文件模式，去掉后缀
-          local module_name = module:gsub("%" .. ext .. "$", "")
-          actual_file = filepath:gsub("{module}", module_name)
-          actual_prefix = prefix:gsub("{module}", module_name)
-        else
-          -- 目录模式
-          actual_file = filepath:gsub("{module}", module)
-          actual_prefix = prefix:gsub("{module}", module)
-        end
-
-        if utils.file_exists(actual_file) then
-          local data = parse_file(actual_file)
-          -- vim.notify("loading file: " .. actual_file .. ", data:" .. vim.inspect(data))
-          if data then
-            M.translations[lang] = M.translations[lang] or {}
-            deep_merge(M.translations[lang], data, actual_prefix)
-          end
+  local vars = extract_vars(filepath)
+  if #vars > 0 then
+    -- 存在自定义变量，递归扫描
+    scan_vars(filepath, vars, 1, function(actual_file)
+      -- prefix 也需要替换变量
+      local actual_prefix = fill_prefix(actual_file, filepath, prefix)
+      vim.notify("actual_file: " .. actual_file .. "\nfilepath: " .. filepath .. "\nactual_prefix: " .. actual_prefix)
+      if utils.file_exists(actual_file) then
+        local data = parse_file(actual_file)
+        if data then
+          M.translations[lang] = M.translations[lang] or {}
+          deep_merge(M.translations[lang], data, actual_prefix)
         end
       end
-    end
+    end)
   else
     -- 直接加载文件
     if utils.file_exists(filepath) then
