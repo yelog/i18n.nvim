@@ -9,16 +9,30 @@ local ns = vim.api.nvim_create_namespace('i18n_display')
 -- 提取国际化键
 local function extract_i18n_keys(line, patterns)
   local keys = {}
+  local occupied = {}
   for _, pattern in ipairs(patterns) do
     local pos = 1
     while pos <= #line do
       local start_pos, end_pos, key = line:find(pattern, pos)
       if start_pos then
-        table.insert(keys, {
-          key = key,
-          start_pos = start_pos,
-          end_pos = end_pos
-        })
+        -- 检查该区间是否已被其他 pattern 匹配
+        local overlap = false
+        for i = start_pos, end_pos do
+          if occupied[i] then
+            overlap = true
+            break
+          end
+        end
+        if not overlap then
+          table.insert(keys, {
+            key = key,
+            start_pos = start_pos,
+            end_pos = end_pos
+          })
+          for i = start_pos, end_pos do
+            occupied[i] = true
+          end
+        end
         pos = end_pos + 1
       else
         break
