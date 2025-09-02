@@ -62,7 +62,7 @@ M.refresh_buffer = function(bufnr)
   vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
 
   local patterns = config.options.static.func_pattern
-  local default_lang = config.options.static.default_lang
+  local default_lang = config.options.static.langs[1]
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
 
   -- 获取当前窗口和光标行

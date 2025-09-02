@@ -10,7 +10,6 @@ M.defaults = {
       "%$t%(['\"]([^'\"]+)['\"]",
     },
     langs = { "en", "zh" },
-    default_lang = { "zh" },
     files = {}
   }
 }

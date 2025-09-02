@@ -33,7 +33,6 @@ require("i18n").setup({
   mode = "static",
   static = {
     langs = { "zh-CN", "en-US" },
-    default_lang = { "zh-CN" },
     files = {
       "./src/locales/{langs}.json",
     },

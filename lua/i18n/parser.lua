@@ -151,7 +151,8 @@ end
 
 -- 获取翻
 M.get_translation = function(key, lang)
-  lang = lang or config.options.static.default_lang[1]
+  local langs = config.options.static.langs
+  lang = lang or (langs and langs[1])
   if M.translations[lang] and M.translations[lang][key] then
     return M.translations[lang][key]
   end
