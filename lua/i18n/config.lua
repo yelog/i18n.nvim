@@ -1,12 +1,13 @@
 local M = {}
 
 M.defaults = {
-  display = 'replace',
+  show_translation = true,
+  show_origin = false,
   mode = 'static',
   static = {
     func_pattern = {
-      "t%(['\"]([^']-)['\"]",
-      "%$t%(['\"]([^']-)['\"]",
+      "t%(['\"]([^'\"]+)['\"]",
+      "%$t%(['\"]([^'\"]+)['\"]",
     },
     langs = { "en", "zh" },
     default_lang = { "zh" },

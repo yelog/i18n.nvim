@@ -58,10 +58,6 @@ M.refresh_buffer = function(bufnr)
   -- 清除旧的虚拟文本
   vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
 
-  if config.options.display ~= 'replace' then
-    return
-  end
-
   local patterns = config.options.static.func_pattern
   local default_lang = config.options.static.default_lang[1]
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)

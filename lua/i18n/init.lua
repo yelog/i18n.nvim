@@ -12,11 +12,7 @@ M.setup = function(opts)
     parser.load_translations()
 
     -- 设置显示模式
-    if config.options.display == 'replace' then
-      display.setup_replace_mode()
-    elseif config.options.display == 'popup' then
-      display.setup_popup_mode()
-    end
+    display.setup_replace_mode()
 
     -- 创建用户命令
     vim.api.nvim_create_user_command('I18nReload', function()
