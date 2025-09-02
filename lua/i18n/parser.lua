@@ -26,53 +26,82 @@ local function parse_yaml(content)
   return result
 end
 
--- 解析 JS/TS 文件
+-- 解析 JS/TS 文件（使用 treesitter 支持递归任意深度）
 local function parse_js(content)
-  -- 递归解析对象字符串为扁平化 key-value
-  local function parse_object(str, prefix, tbl)
-    tbl = tbl or {}
-    prefix = prefix or ""
-    -- 匹配 key: value 或 key: { ... }
-    for key, value in str:gmatch('([%w_]+)%s*:%s*([^\n,{}]+)') do
-      -- 去除首尾空格和引号
-      key = key:gsub("^['\"]", ""):gsub("['\"]$", "")
-      value = value:gsub("^%s*", ""):gsub("%s*$", "")
-      if value:match("^{") then
-        -- 嵌套对象，递归
-        local nested = value:match("^{(.*)}$")
-        if nested then
-          parse_object(nested, prefix .. key .. ".", tbl)
+  local ts = vim.treesitter
+  local parser = nil
+  local lang = nil
+
+  -- 自动判断语言类型
+  if content:match("export%s+default") or content:match("module%.exports") then
+    lang = "javascript"
+  else
+    lang = "typescript"
+  end
+
+  -- treesitter 解析
+  local ok, tree = pcall(function()
+    parser = ts.get_string_parser(content, lang)
+    return parser:parse()[1]
+  end)
+  if not ok or not tree then
+    return {}
+  end
+
+  local root = tree:root()
+  local result = {}
+
+  -- 查找 export default/module.exports 的对象节点
+  local function find_export_object(node)
+    for child in node:iter_children() do
+      if child:type() == "export_statement" or child:type() == "expression_statement" then
+        for grand in child:iter_children() do
+          if grand:type() == "object" then
+            return grand
+          elseif grand:type() == "assignment_expression" then
+            for g in grand:iter_children() do
+              if g:type() == "object" then
+                return g
+              end
+            end
+          end
         end
+      elseif child:type() == "object" then
+        return child
       else
-        value = value:gsub("^['\"]", ""):gsub("['\"]$", "")
-        tbl[prefix .. key] = value
+        local found = find_export_object(child)
+        if found then return found end
       end
     end
-    -- 递归处理嵌套对象
-    for obj_key, obj_body in str:gmatch('([%w_]+)%s*:%s*{(.-)}') do
-      obj_key = obj_key:gsub("^['\"]", ""):gsub("['\"]$", "")
-      parse_object(obj_body, prefix .. obj_key .. ".", tbl)
-    end
-    return tbl
+    return nil
   end
 
-  -- 匹配 export default { ... } 或 module.exports = { ... }
-  local obj_content = content:match("export%s+default%s*{(.*)}%s*;?%s*$")
-      or content:match("module%.exports%s*=%s*{(.*)}%s*;?%s*$")
-      or content:match("export%s*{(.*)}%s*;?%s*$")
-
-  if obj_content then
-    -- 递归解析所有 key
-    local result = parse_object(obj_content)
-    -- 去除末尾的点
-    local clean_result = {}
-    for k, v in pairs(result) do
-      local clean_key = k:gsub("%.$", "")
-      clean_result[clean_key] = v
+  -- 递归遍历对象节点
+  local function traverse_object(node, prefix)
+    prefix = prefix or ""
+    for prop in node:iter_children() do
+      if prop:type() == "pair" then
+        local key_node = prop:field("key")[1]
+        local value_node = prop:field("value")[1]
+        -- 兼容不同 Neovim/treesitter 版本的 get_node_text
+        local get_node_text = ts.get_node_text or vim.treesitter.get_node_text
+        local key = get_node_text and get_node_text(key_node, content) or key_node and key_node:text() or ""
+        if value_node:type() == "object" then
+          traverse_object(value_node, prefix .. key .. ".")
+        else
+          local value = get_node_text and get_node_text(value_node, content) or value_node and value_node:text() or ""
+          result[prefix .. key] = value
+        end
+      end
     end
-    return clean_result
   end
-  return {}
+
+  local obj_node = find_export_object(root)
+  if obj_node then
+    traverse_object(obj_node, "")
+  end
+
+  return result
 end
 
 -- 根据文件扩展名解析文件
