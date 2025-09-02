@@ -102,7 +102,6 @@ M.refresh_buffer = function(bufnr)
           vim.api.nvim_buf_set_extmark(bufnr, ns, line_num - 1, s - 1, {
             end_col = e,
             conceal = "",
-            hl_group = "Conceal"
           })
         end
       end
