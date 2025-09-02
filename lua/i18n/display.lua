@@ -10,15 +10,9 @@ local ns = vim.api.nvim_create_namespace('i18n_display')
 local function extract_i18n_keys(line, patterns)
   local keys = {}
   for _, pattern in ipairs(patterns) do
-    -- 转义模式中的特殊字符并替换 %s
-    local escaped_pattern = pattern:gsub("([%(%)%.%%%+%-%*%?%[%]%^%$])", "%%%1")
-    escaped_pattern = escaped_pattern:gsub("%%s", "(.-)")
-
     local pos = 1
     while pos <= #line do
-      local start_pos, end_pos, key = line:find(escaped_pattern, pos)
-      vim.notify(
-        vim.log.levels.DEBUG)
+      local start_pos, end_pos, key = line:find(pattern, pos)
       if start_pos then
         table.insert(keys, {
           key = key,
@@ -37,9 +31,9 @@ end
 -- 设置虚拟文本
 local function set_virtual_text(bufnr, line_num, col, text)
   vim.api.nvim_buf_set_extmark(bufnr, ns, line_num, col, {
-    virt_text = { { text, "Comment" } },
-    virt_text_pos = "overlay",
-    hl_mode = "combine"
+    virt_text = { { ": " .. text, "Comment" } },
+    virt_text_pos = "inline",
+    -- virt_text_hide = false,
   })
 end
 
@@ -64,7 +58,8 @@ M.refresh_buffer = function(bufnr)
       local translation = parser.get_translation(key_info.key, default_lang)
       if translation then
         -- 在键的位置显示翻译
-        set_virtual_text(bufnr, line_num - 1, key_info.start_pos - 1, translation)
+        -- set_virtual_text(bufnr, line_num - 1, key_info.start_pos - 1, translation)
+        set_virtual_text(bufnr, line_num - 1, key_info.end_pos, translation)
       end
     end
   end
