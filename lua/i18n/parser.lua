@@ -1,8 +1,6 @@
--- actual_prefix: src/views/qds/locales/lang/en_US/system.ts
--- filepath: src/views/{bu}/locales/lang/en_US/{module}.ts
--- prefix: {bu}.{module}.
--- 存储所有翻译内容
-M.translations = {}
+local M = {}
+local config = require('i18n.config')
+local utils = require('i18n.utils')
 
 -- 解析 JSON 文件
 local function parse_json(content)
@@ -184,56 +182,55 @@ end
 -- actual_prefix: src/views/qds/locales/lang/en_US/system.ts
 -- filepath: src/views/{bu}/locales/lang/en_US/{module}.ts
 -- prefix: {bu}.{module}. -> qds.system.
-function fill_prefix(actual_file, filepath, prefix)
-    local prefix_vars = extract_vars(prefix)
-    
-    -- 创建一个更精确的匹配模式
-    local pattern = "^" .. filepath:gsub("([%.%-%+%*%?%[%]%(%)%^%$])", "%%%1"):gsub("{[^}]+}", "([^/]+)") .. "$"
-    
-    local matches = {actual_file:match(pattern)}
-    
-    -- 如果匹配失败，尝试更灵活的方法
-    if #matches == 0 then
-        -- 手动解析路径
-        local actual_segments = {}
-        local template_segments = {}
-        
-        for segment in actual_file:gmatch("[^/]+") do
-            table.insert(actual_segments, segment)
-        end
-        
-        for segment in filepath:gmatch("[^/]+") do
-            table.insert(template_segments, segment)
-        end
-        
-        local var_count = 1
-        for i, template_seg in ipairs(template_segments) do
-            if template_seg:match("^{[^}]+}$") then
-                if actual_segments[i] then
-                    local value = actual_segments[i]:gsub("%.ts$", "")
-                    matches[var_count] = value
-                    var_count = var_count + 1
-                end
-            end
-        end
-    else
-        -- 清理匹配结果（移除文件扩展名等）
-        for i, match in ipairs(matches) do
-            matches[i] = match:gsub("%.ts$", "")
-        end
-    end
-    
-    -- 替换 prefix 中的变量
-    local result = prefix
-    for i, var in ipairs(prefix_vars) do
-        if matches[i] then
-            result = result:gsub("{" .. var .. "}", matches[i])
-        end
-    end
-    
-    return result
-end
+local function fill_prefix(actual_file, filepath, prefix)
+  local prefix_vars = extract_vars(prefix)
 
+  -- 创建一个更精确的匹配模式
+  local pattern = "^" .. filepath:gsub("([%.%-%+%*%?%[%]%(%)%^%$])", "%%%1"):gsub("{[^}]+}", "([^/]+)") .. "$"
+
+  local matches = { actual_file:match(pattern) }
+
+  -- 如果匹配失败，尝试更灵活的方法
+  if #matches == 0 then
+    -- 手动解析路径
+    local actual_segments = {}
+    local template_segments = {}
+
+    for segment in actual_file:gmatch("[^/]+") do
+      table.insert(actual_segments, segment)
+    end
+
+    for segment in filepath:gmatch("[^/]+") do
+      table.insert(template_segments, segment)
+    end
+
+    local var_count = 1
+    for i, template_seg in ipairs(template_segments) do
+      if template_seg:match("^{[^}]+}$") then
+        if actual_segments[i] then
+          local value = actual_segments[i]:gsub("%.ts$", "")
+          matches[var_count] = value
+          var_count = var_count + 1
+        end
+      end
+    end
+  else
+    -- 清理匹配结果（移除文件扩展名等）
+    for i, match in ipairs(matches) do
+      matches[i] = match:gsub("%.ts$", "")
+    end
+  end
+
+  -- 替换 prefix 中的变量
+  local result = prefix
+  for i, var in ipairs(prefix_vars) do
+    if matches[i] then
+      result = result:gsub("{" .. var .. "}", matches[i])
+    end
+  end
+
+  return result
+end
 
 -- 加载单个文件配置
 local function load_file_config(file_config, lang)
@@ -248,7 +245,7 @@ local function load_file_config(file_config, lang)
     scan_vars(filepath, vars, 1, function(actual_file)
       -- prefix 也需要替换变量
       local actual_prefix = fill_prefix(actual_file, filepath, prefix)
-      vim.notify("actual_file: " .. actual_file .. "\nfilepath: " .. filepath .. "\nactual_prefix: " .. actual_prefix)
+      -- vim.notify("actual_file: " .. actual_file .. "\nfilepath: " .. filepath .. "\nactual_prefix: " .. actual_prefix)
       if utils.file_exists(actual_file) then
         local data = parse_file(actual_file)
         if data then
@@ -284,7 +281,7 @@ M.load_translations = function()
         ext = filepath:match("{module}%.([%w_]+)")
         if ext then ext = "." .. ext end
       end
-      load_file_config(file_config, lang, ext)
+      load_file_config(file_config, lang)
     end
   end
 end
