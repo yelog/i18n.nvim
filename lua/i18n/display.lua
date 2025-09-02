@@ -66,14 +66,22 @@ M.refresh_buffer = function(bufnr)
   local default_lang = config.options.static.default_lang[1]
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
 
+  -- 获取当前窗口和光标行
+  local current_win = vim.api.nvim_get_current_win()
+  local cursor_line = nil
+  if vim.api.nvim_win_get_buf(current_win) == bufnr then
+    cursor_line = vim.api.nvim_win_get_cursor(current_win)[1]
+  end
+
   for line_num, line in ipairs(lines) do
     local keys = extract_i18n_keys(line, patterns)
     for _, key_info in ipairs(keys) do
       local translation = parser.get_translation(key_info.key, default_lang)
       if translation then
-        -- 在键的位置显示翻译
-        -- set_virtual_text(bufnr, line_num - 1, key_info.start_pos - 1, translation)
-        set_virtual_text(bufnr, line_num - 1, key_info.end_pos, translation)
+        -- 如果当前行为光标所在行，则不显示虚拟文本
+        if not cursor_line or line_num ~= cursor_line then
+          set_virtual_text(bufnr, line_num - 1, key_info.end_pos, translation)
+        end
       end
     end
   end
@@ -173,6 +181,15 @@ M.setup_replace_mode = function()
       vim.defer_fn(function()
         M.refresh_buffer(args.buf)
       end, 100)
+    end
+  })
+
+  -- 光标移动时刷新（用于隐藏/显示当前行虚拟文本）
+  vim.api.nvim_create_autocmd({ 'CursorMoved', 'CursorMovedI' }, {
+    group = group,
+    pattern = { '*.vue', '*.js', '*.jsx', '*.ts', '*.tsx' },
+    callback = function(args)
+      M.refresh_buffer(args.buf)
     end
   })
 end
