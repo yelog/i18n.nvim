@@ -69,6 +69,13 @@ M.refresh_buffer = function(bufnr)
     cursor_line = vim.api.nvim_win_get_cursor(current_win)[1]
   end
 
+  -- 根据 show_origin 控制 conceallevel
+  if config.options.show_origin == false then
+    vim.api.nvim_buf_set_option(bufnr, 'conceallevel', 2)
+  else
+    vim.api.nvim_buf_set_option(bufnr, 'conceallevel', 0)
+  end
+
   for line_num, line in ipairs(lines) do
     local keys = extract_i18n_keys(line, patterns)
     for _, key_info in ipairs(keys) do
@@ -79,6 +86,21 @@ M.refresh_buffer = function(bufnr)
           if not cursor_line or line_num ~= cursor_line then
             set_virtual_text(bufnr, line_num - 1, key_info.end_pos, translation)
           end
+        end
+      end
+
+      -- 根据 show_origin 控制 key 及其引号的 conceal
+      if config.options.show_origin == false then
+        -- 只隐藏 key 及其引号，不隐藏函数名和括号
+        -- 重新用正则查找本行内 key 的引号包裹范围
+        -- 例如 $t('common.save') 只隐藏 'common.save'
+        local s, e, quote, key = line:find("(['\"])([^'\"]+)['\"]", key_info.start_pos)
+        if s and e and key == key_info.key then
+          vim.api.nvim_buf_set_extmark(bufnr, ns, line_num - 1, s - 1, {
+            end_col = e,
+            conceal = "",
+            hl_group = "Conceal"
+          })
         end
       end
     end
