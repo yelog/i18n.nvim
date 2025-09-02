@@ -86,17 +86,27 @@ local function load_file_config(file_config, lang)
 
   -- 替换 {langs} 占位符
   local filepath = files_pattern:gsub("{langs}", lang)
-
-  -- 如果有 {module} 占位符，需要扫描目录
+  -- 如果有 {module} 占位符，需要扫描目录或文件
   if filepath:match("{module}") then
-    local pattern = filepath:gsub("{module}", "([^/]+)")
+    -- 判断 {module} 后面是文件后缀还是 /
+    local ext = filepath:match("{module}%.([%w_]+)")
+    if ext then ext = "." .. ext end
     local dir = filepath:match("^(.-)/[^/]*{module}")
 
     if dir and utils.file_exists(dir) then
-      local modules = utils.scan_dir(dir)
+      local modules = utils.scan_sub(dir, ext)
       for _, module in ipairs(modules) do
-        local actual_file = filepath:gsub("{module}", module)
-        local actual_prefix = prefix:gsub("{module}", module)
+        local actual_file, actual_prefix
+        if ext then
+          -- 文件模式，去掉后缀
+          local module_name = module:gsub("%" .. ext .. "$", "")
+          actual_file = filepath:gsub("{module}", module_name)
+          actual_prefix = prefix:gsub("{module}", module_name)
+        else
+          -- 目录模式
+          actual_file = filepath:gsub("{module}", module)
+          actual_prefix = prefix:gsub("{module}", module)
+        end
 
         if utils.file_exists(actual_file) then
           local data = parse_file(actual_file)
@@ -126,7 +136,15 @@ M.load_translations = function()
 
   for _, lang in ipairs(static_config.langs) do
     for _, file_config in ipairs(static_config.files) do
-      load_file_config(file_config, lang)
+      -- 判断 {module} 后面是文件后缀还是 /
+      local files_pattern = type(file_config) == "string" and file_config or file_config.files
+      local filepath = files_pattern:gsub("{langs}", lang)
+      local ext = nil
+      if filepath:match("{module}") then
+        ext = filepath:match("{module}%.([%w_]+)")
+        if ext then ext = "." .. ext end
+      end
+      load_file_config(file_config, lang, ext)
     end
   end
 end

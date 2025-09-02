@@ -21,20 +21,27 @@ M.file_exists = function(filepath)
     return false
 end
 
--- 扫描目录获取子目录
-M.scan_dir = function(dir)
-    local dirs = {}
+-- 扫描目录获取子目录或者指定后缀的文件
+-- scan_sub(dir, ext): ext为空则查目录，否则查指定后缀文件
+M.scan_sub = function(dir, ext)
+    local result = {}
     local handle = vim.loop.fs_scandir(dir)
     if handle then
         while true do
             local name, type = vim.loop.fs_scandir_next(handle)
             if not name then break end
-            if type == "directory" then
-                table.insert(dirs, name)
+            if not ext then
+                if type == "directory" then
+                    table.insert(result, name)
+                end
+            else
+                if type == "file" and name:sub(-#ext) == ext then
+                    table.insert(result, name)
+                end
             end
         end
     end
-    return dirs
+    return result
 end
 
 return M
