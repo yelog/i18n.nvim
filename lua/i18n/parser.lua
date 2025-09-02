@@ -86,10 +86,30 @@ local function parse_js(content)
         -- 兼容不同 Neovim/treesitter 版本的 get_node_text
         local get_node_text = ts.get_node_text or vim.treesitter.get_node_text
         local key = get_node_text and get_node_text(key_node, content) or key_node and key_node:text() or ""
+
+        -- 去除 key 两侧的引号（若有）
+        if #key >= 2 then
+          local kfirst = key:sub(1,1)
+          local klast = key:sub(-1)
+          if (kfirst == '"' or kfirst == "'" or kfirst == "`") and klast == kfirst then
+            key = key:sub(2, -2)
+          end
+        end
+
         if value_node:type() == "object" then
           traverse_object(value_node, prefix .. key .. ".")
         else
           local value = get_node_text and get_node_text(value_node, content) or value_node and value_node:text() or ""
+
+          -- 去除 value 两侧的引号（若有）
+          if #value >= 2 then
+            local vfirst = value:sub(1,1)
+            local vlast = value:sub(-1)
+            if (vfirst == '"' or vfirst == "'" or vfirst == "`") and vlast == vfirst then
+              value = value:sub(2, -2)
+            end
+          end
+
           result[prefix .. key] = value
         end
       end
