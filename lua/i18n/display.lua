@@ -72,11 +72,13 @@ M.refresh_buffer = function(bufnr)
   for line_num, line in ipairs(lines) do
     local keys = extract_i18n_keys(line, patterns)
     for _, key_info in ipairs(keys) do
-      local translation = parser.get_translation(key_info.key, default_lang)
-      if translation then
-        -- 如果当前行为光标所在行，则不显示虚拟文本
-        if not cursor_line or line_num ~= cursor_line then
-          set_virtual_text(bufnr, line_num - 1, key_info.end_pos, translation)
+      if config.options.show_translation then
+        local translation = parser.get_translation(key_info.key, default_lang)
+        if translation then
+          -- 如果当前行为光标所在行，则不显示虚拟文本
+          if not cursor_line or line_num ~= cursor_line then
+            set_virtual_text(bufnr, line_num - 1, key_info.end_pos, translation)
+          end
         end
       end
     end
