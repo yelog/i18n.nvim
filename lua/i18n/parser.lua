@@ -81,7 +81,6 @@ end
 
 -- 加载单个文件配置
 local function load_file_config(file_config, lang)
-  print("Loading translations for lang:", lang)
   local files_pattern = type(file_config) == "string" and file_config or file_config.files
   local prefix = type(file_config) == "table" and file_config.prefix or ""
 

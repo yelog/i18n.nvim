@@ -44,10 +44,13 @@ end
 
 -- 设置虚拟文本
 local function set_virtual_text(bufnr, line_num, col, text)
+  local prefix = ""
+  if config.options.show_origin ~= false then
+    prefix = ": "
+  end
   vim.api.nvim_buf_set_extmark(bufnr, ns, line_num, col, {
-    virt_text = { { ": " .. text, "Comment" } },
+    virt_text = { { prefix .. text, "Comment" } },
     virt_text_pos = "inline",
-    -- virt_text_hide = false,
   })
 end
 
