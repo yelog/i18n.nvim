@@ -38,7 +38,10 @@ require('lazy').setup({
               -- 'src/views/{module}/locales/{langs}.ts',
             },
             -- function patterns used to detect i18n keys in code
-            func_pattern = { "t%s*%(%s*['\"]([^'\"]+)['\"]%s*%)" },
+            func_pattern = {
+              "t%(['\"]([^'\"]+)['\"]",
+              "%$t%(['\"]([^'\"]+)['\"]",
+            },
           },
         },
       })
