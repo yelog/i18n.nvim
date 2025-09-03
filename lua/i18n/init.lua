@@ -23,6 +23,9 @@ M.setup = function(opts)
     vim.api.nvim_create_user_command('I18nShowTranslations', function()
       display.show_popup()
     end, {})
+
+    -- 注册补全源
+    require('i18n.completion').setup()
   end
 end
 

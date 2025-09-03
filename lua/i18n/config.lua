@@ -11,6 +11,12 @@ M.defaults = {
     },
     langs = { "en", "zh" },
     files = {}
+  },
+  completion = {
+    enable = true,
+    engine = 'auto', -- 'auto' | 'cmp' | 'blink'
+    max_items = 15,
+    fuzzy = true,
   }
 }
 

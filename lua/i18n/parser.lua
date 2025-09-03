@@ -335,6 +335,19 @@ M.load_translations = function()
       load_file_config(file_config, lang)
     end
   end
+
+  -- 汇总所有 key (合并所有语言)
+  local set = {}
+  for _, translations in pairs(M.translations) do
+    for k, _ in pairs(translations) do
+      set[k] = true
+    end
+  end
+  M.all_keys = {}
+  for k, _ in pairs(set) do
+    table.insert(M.all_keys, k)
+  end
+  table.sort(M.all_keys)
 end
 
 -- 获取特定语言的翻译
@@ -356,6 +369,11 @@ M.get_all_translations = function(key)
     end
   end
   return result
+end
+
+M.get_all_keys = function()
+  if not M.all_keys then return {} end
+  return M.all_keys
 end
 
 return M
