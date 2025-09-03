@@ -144,15 +144,17 @@ local function parse_file(filepath)
 end
 
 -- 深度合并表
+-- 变更说明：不要将中间节点（table）作为独立翻译条目写入目标表，
+-- 仅在遇到非 table 的叶子节点时才写入 t1。这样可以避免像 "hello" 这种
+-- 只含子项的父键被错误地当作翻译条目插入。
 local function deep_merge(t1, t2, prefix)
   prefix = prefix or ""
   for k, v in pairs(t2 or {}) do
     local full_key = prefix == "" and k or (prefix .. k)
     if type(v) == "table" then
-      t1[full_key] = t1[full_key] or {}
+      -- 仅递归展开子表，不创建中间节点条目
       deep_merge(t1, v, full_key .. ".")
     else
-      -- vim.notify("Merging key: " .. full_key .. " with value: " .. tostring(v))
       t1[full_key] = v
     end
   end
