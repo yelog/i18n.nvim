@@ -97,15 +97,30 @@ function M.new(opts)
     end)
 
     -- 获取所有语言
-    -- local langs = require("i18n.config").options.static.langs or {}
+    local langs = require("i18n.config").options.static.langs or {}
 
     i18n_items = {}
     for _, k in ipairs(key_list) do
-      table.insert(i18n_items, {
+      local default_val = nil
+      if #langs > 0 and translations[langs[1]] then
+        default_val = translations[langs[1]][k]
+      end
+      if type(default_val) == "table" then
+        local ok, json = pcall(vim.json.encode, default_val)
+        if ok then
+          default_val = json
+        else
+          default_val = vim.inspect(default_val)
+        end
+      end
+      i18n_items[#i18n_items + 1] = {
         label = k,
         insertText = k,
         textEdit = { newText = k },
-      })
+        -- detail 作为右侧预览面板标题，改为展示 key 本身
+        detail = k,
+        -- documentation 在 resolve 时再构建，避免初始构建过慢
+      }
     end
   end
   return self
@@ -170,6 +185,47 @@ function M:resolve(item, callback)
   if config.insert then
     resolved.textEdit.newText = resolved.insertText
   end
+
+  -- 构建多语言文档预览
+  local ok_parser, parser = pcall(require, "i18n.parser")
+  local ok_config, cfg = pcall(require, "i18n.config")
+  if ok_parser and ok_config and cfg.options and cfg.options.static then
+    local langs = cfg.options.static.langs or {}
+    local trans_tbl = {}
+    if parser.get_all_translations then
+      trans_tbl = parser.get_all_translations(resolved.label) or {}
+    elseif parser.translations then
+      for _, lang in ipairs(langs) do
+        local lang_tbl = parser.translations[lang] or {}
+        if lang_tbl[resolved.label] then
+          trans_tbl[lang] = lang_tbl[resolved.label]
+        end
+      end
+    end
+    local lines = {}
+    for _, lang in ipairs(langs) do
+      local v = trans_tbl[lang]
+      if type(v) == "table" then
+        local okj, json = pcall(vim.json.encode, v)
+        if okj then
+          v = json
+        else
+          v = vim.inspect(v)
+        end
+      end
+      if v == nil then
+        v = "(missing)"
+      end
+      lines[#lines + 1] = string.format("%s: %s", lang, v)
+    end
+    if #lines > 0 then
+      resolved.documentation = table.concat(lines, "\n")
+      if not resolved.detail and langs[1] then
+        resolved.detail = trans_tbl[langs[1]] and tostring(trans_tbl[langs[1]]) or nil
+      end
+    end
+  end
+
   return callback(resolved)
 end
 
