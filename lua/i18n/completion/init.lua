@@ -33,9 +33,9 @@ M.setup = function()
     --   },
     --   default = { 'i18n', 'lsp', ... }
     -- }
-    vim.schedule(function()
-      vim.notify("[i18n] 请在 blink.cmp.setup 的 sources.providers 中手动添加 i18n = require('i18n.completion.blink_source') 并在 sources.default 列表中加入 'i18n'", vim.log.levels.INFO)
-    end)
+    -- vim.schedule(function()
+    --   vim.notify("[i18n] blink.cmp 未提供运行期动态注册，请在你的 blink.cmp.setup 中配置:\n\n  sources = {\n    default = { 'i18n', 'lsp', 'path', 'buffer' },\n    providers = {\n      i18n = { module = 'i18n.completion.blink_source', name = 'i18n' },\n      -- 其它 provider ...\n    },\n  }\n\n(module 请使用 'i18n.completion.blink_source' 而非 'i18n')", vim.log.levels.INFO)
+    -- end)
   end
 end
 
