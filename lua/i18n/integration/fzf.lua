@@ -84,7 +84,7 @@ function M.show_i18n_keys_with_fzf()
   end)
 
   -- 获取所有语言
-  local langs = require("i18n.config").options.static.langs or {}
+  local langs = require("i18n.config").options.langs or {}
 
   -- 计算等宽的列宽
   local col_count = 1 + #langs
@@ -170,7 +170,7 @@ function M.show_i18n_keys_with_fzf()
             if display_line == selected_line then
               local key = index_to_key[index]
               if key then
-                vim.notify("选中 key: " .. key)
+                -- vim.notify("选中 key: " .. key)
                 vim.fn.setreg('+', key)
               end
               break
@@ -187,7 +187,7 @@ function M.show_i18n_keys_with_fzf()
               local key = index_to_key[index]
               if key then
                 vim.fn.setreg('+', key)
-                vim.notify("已复制 key 到剪贴板: " .. key)
+                -- vim.notify("已复制 key 到剪贴板: " .. key)
               end
               break
             end

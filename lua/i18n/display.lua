@@ -1,17 +1,16 @@
 local M = {}
 local config = require('i18n.config')
 local parser = require('i18n.parser')
-local utils = require('i18n.utils')
 
 -- 命名空间
 local ns = vim.api.nvim_create_namespace('i18n_display')
 
--- 当前显示语言索引（基于 config.options.static.langs）
+-- 当前显示语言索引（基于 config.langs）
 M._current_lang_index = 1
 
 -- 获取当前语言
 M.get_current_lang = function()
-  local langs = (config.options.static or {}).langs or {}
+  local langs = (config.options or {}).langs or {}
   if #langs == 0 then return nil end
   if not M._current_lang_index or M._current_lang_index > #langs then
     M._current_lang_index = 1
@@ -21,7 +20,7 @@ end
 
 -- 切换到下一个语言
 M.next_lang = function()
-  local langs = (config.options.static or {}).langs or {}
+  local langs = (config.options or {}).langs or {}
   if #langs == 0 then
     vim.notify("[i18n] 未配置 langs", vim.log.levels.WARN)
     return
@@ -85,7 +84,7 @@ M.refresh_buffer = function(bufnr)
   -- 清除旧的虚拟文本
   vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
 
-  local patterns = config.options.static.func_pattern
+  local patterns = config.options.func_pattern
   local default_lang = M.get_current_lang()
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
 
@@ -138,7 +137,7 @@ end
 M.show_popup = function()
   local cursor = vim.api.nvim_win_get_cursor(0)
   local line = vim.api.nvim_get_current_line()
-  local patterns = config.options.static.func_pattern
+  local patterns = config.options.func_pattern
 
   -- 提取当前行的国际化键
   local keys = extract_i18n_keys(line, patterns)

@@ -320,10 +320,10 @@ end
 -- 加载所有翻译文件
 M.load_translations = function()
   M.translations = {}
-  local static_config = config.options.static
+  local options = config.options
 
-  for _, lang in ipairs(static_config.langs) do
-    for _, file_config in ipairs(static_config.files) do
+  for _, lang in ipairs(options.langs) do
+    for _, file_config in ipairs(options.files) do
       -- 判断 {module} 后面是文件后缀还是 /
       local files_pattern = type(file_config) == "string" and file_config or file_config.files
       local filepath = files_pattern:gsub("{langs}", lang)
@@ -352,7 +352,7 @@ end
 
 -- 获取特定语言的翻译
 M.get_translation = function(key, lang)
-  local langs = config.options.static.langs
+  local langs = config.options.langs
   lang = lang or (langs and langs[1])
   if M.translations[lang] and M.translations[lang][key] then
     return M.translations[lang][key]

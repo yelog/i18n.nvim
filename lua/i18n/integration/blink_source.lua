@@ -97,7 +97,7 @@ function M.new(opts)
     end)
 
     -- 获取所有语言
-    local langs = require("i18n.config").options.static.langs or {}
+    local langs = require("i18n.config").options.langs or {}
 
     i18n_items = {}
     for _, k in ipairs(key_list) do
@@ -189,8 +189,8 @@ function M:resolve(item, callback)
   -- 构建多语言文档预览
   local ok_parser, parser = pcall(require, "i18n.parser")
   local ok_config, cfg = pcall(require, "i18n.config")
-  if ok_parser and ok_config and cfg.options and cfg.options.static then
-    local langs = cfg.options.static.langs or {}
+  if ok_parser and ok_config and cfg.options and cfg.options then
+    local langs = cfg.options.langs or {}
     local trans_tbl = {}
     if parser.get_all_translations then
       trans_tbl = parser.get_all_translations(resolved.label) or {}

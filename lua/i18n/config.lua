@@ -3,14 +3,13 @@ local M = {}
 M.defaults = {
   show_translation = true,
   show_origin = false,
-  mode = 'static',
-  static = {
-    func_pattern = {
-      "t%(['\"]([^'\"]+)['\"]",
-      "%$t%(['\"]([^'\"]+)['\"]",
-    },
-    langs = { "en", "zh" },
-    files = {}
+  func_pattern = {
+    "t%(['\"]([^'\"]+)['\"]",
+    "%$t%(['\"]([^'\"]+)['\"]",
+  },
+  langs = { "en", "zh" },
+  files = {
+    "src/locales/{langs}.json",
   },
   completion = {
     enable = true,

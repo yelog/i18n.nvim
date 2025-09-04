@@ -22,38 +22,37 @@ Designed for front-end projects (JSON, YAML, JS/TS translation modules) and inte
 Example configuration using lazy.nvim:
 
 ```lua
-require('lazy').setup({
-  {
-    'yelog/i18n.nvim',
-    config = function()
-      require('i18n').setup({
-        options = {
-          mode = 'static',
-          static = {
-            langs = { 'en_US', 'zh_CN' },
-            -- files can be string or table { files = "...", prefix = "..." }
-            files = {
-              'src/locales/{langs}.json',
-              -- { files = "src/locales/lang/{langs}/{module}.ts",            prefix = "{module}." },
-              -- { files = "src/views/{bu}/locales/lang/{langs}/{module}.ts", prefix = "{bu}.{module}." },
-            },
-            -- function patterns used to detect i18n keys in code
-            func_pattern = {
-              "t%(['\"]([^'\"]+)['\"]", -- t('key') or t("key")
-              "%$t%(['\"]([^'\"]+)['\"]", -- $t('key') or $t("key")
-            },
-          },
-        },
-      })
-    end
-  }
-})
+{
+  'yelog/i18n.nvim',
+  lazy = true,
+  dependencies = {
+    'ibhagwan/fzf-lua',
+    'nvim-treesitter/nvim-treesitter'
+  },
+  config = function()
+    require('i18n').setup({
+      -- List of languages to parse, the first is considered the default language
+      langs = { 'en', 'zh' },
+      -- files can be string or table { files = "...", prefix = "..." }
+      files = {
+        'src/locales/{langs}.json',
+        -- { files = "src/locales/lang/{langs}/{module}.ts",            prefix = "{module}." },
+        -- { files = "src/views/{bu}/locales/lang/{langs}/{module}.ts", prefix = "{bu}.{module}." },
+      },
+      -- function patterns used to detect i18n keys in code
+      func_pattern = {
+        "t%(['\"]([^'\"]+)['\"]", -- t('key') or t("key")
+        "%$t%(['\"]([^'\"]+)['\"]", -- $t('key') or $t("key")
+      },
+    })
+  end
+}
 ```
 
 ## Quickstart
 
 1. Install the plugin with lazy.nvim (see above).
-2. Configure `options.static.files` and `options.static.langs` to match your project layout.
+2. Configure `files` and `langs` to match your project layout.
 3. Ensure Tree-sitter parsers for JavaScript / TypeScript are installed (e.g. via nvim-treesitter).
 4. Open a source file and use the provided commands / keymaps to show translations and inline virtual text.
 
@@ -68,13 +67,13 @@ vim.keymap.set("n", "<D-S-n>", require("i18n.integration.fzf").show_i18n_keys_wi
 
 
 ```lua
--- Cycle display language (rotates options.static.langs; updates inline virtual text)
+-- Cycle display language (rotates langs; updates inline virtual text)
 vim.keymap.set("n", "<D-S-M-n>", "<cmd>I18nNextLang<CR>", { desc = "Cycle i18n display language" })
 ```
 
 Command:
 - :I18nNextLang  
-  Cycles the active display language used for inline virtual text. It moves to the next entry in `options.static.langs` (wrapping back to the first). Inline overlays refresh automatically.
+  Cycles the active display language used for inline virtual text. It moves to the next entry in `langs` (wrapping back to the first). Inline overlays refresh automatically.
 
 ## blink.cmp Integration
 
@@ -88,17 +87,10 @@ Example blink.cmp configuration:
 ```lua
 require('blink.cmp').setup({
   sources = {
-    default = { 'i18n', 'snippets', 'avante', 'lsp', 'path', 'buffer' },
+    default = { 'i18n', 'snippets', 'lsp', 'path', 'buffer' },
     -- cmdline = {}, -- optionally disable / customize cmdline sources
     providers = {
       lsp = { fallbacks = {} },
-      avante = {
-        module = 'blink-cmp-avante',
-        name = 'Avante',
-        opts = {
-          -- custom options for avante source
-        }
-      },
       i18n = {
         name = 'i18n',
         module = 'i18n.integration.blink_source',
@@ -111,23 +103,19 @@ require('blink.cmp').setup({
 })
 ```
 
-Tips:
-- If you see a warning about falling back to Lua (Rust binary download failed), set:
-  ```lua
-  require('blink.cmp').setup({ fuzzy = { implementation = "lua" } })
-  ```
-- The source only appears if you enable completion mode in your configuration (`completion.enable = true`) or explicitly configure blink.cmp as shown.
+> [!WARNING]
+> Since `blink.cmp` uses a dot (`.`) as a separator for queries, and our i18n keys are also separated by dots, it's recommended to avoid entering dots when searching for keys. For example, instead of typing `common.time.second`, you can type `commonseco` to fuzzy match the i18n key, then press `<c-y>` (or whatever shortcut you have set) to complete the selection.
+
 
 ## Configuration
 
 The plugin exposes `require('i18n').setup(opts)` where `opts` is merged with defaults. Common options:
 
-- mode: "static" or other future modes
-- static.langs: array of language codes, first is considered default
-- static.files: array of file patterns or objects:
+- langs: array of language codes, first is considered default
+- files: array of file patterns or objects:
   - string pattern e.g. `src/locales/{langs}.json`
   - table: `{ files = "pattern", prefix = "optional.prefix." }`
-- static.func_pattern: array of Lua patterns to locate i18n function usages in source files
+- func_pattern: array of Lua patterns to locate i18n function usages in source files
 
 Patterns support placeholders like `{langs}` and custom variables such as `{module}` which will be expanded by scanning the project tree.
 
