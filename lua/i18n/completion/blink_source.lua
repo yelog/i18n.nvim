@@ -8,7 +8,7 @@ local i18n_items
 local function transform(items, context)
   return vim.tbl_map(function(entry)
     return vim.tbl_deep_extend("force", entry, {
-      kind = require("blink.cmp.types").CompletionItemKind.Text,
+      kind = require("blink.cmp.types").CompletionItemKind.Keyword,
       textEdit = {
         range = {
           start = {
@@ -123,7 +123,7 @@ function M:should_show_completion_items(ctx)
   -- 或前面有 ( , [ 空格 .
   -- 只匹配第一个参数未闭合的情况
   if before:match("[%(,%[%s%.]%$?t%s*%(%s*['\"][^'\"]*$") or
-     before:match("^%$?t%s*%(%s*['\"][^'\"]*$") then
+      before:match("^%$?t%s*%(%s*['\"][^'\"]*$") then
     return true
   end
 
