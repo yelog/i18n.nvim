@@ -25,7 +25,7 @@ M.setup = function(opts)
     end, {})
 
     -- 注册补全源
-    require('i18n.completion').setup()
+    require('i18n.integration').setup()
   end
 end
 
