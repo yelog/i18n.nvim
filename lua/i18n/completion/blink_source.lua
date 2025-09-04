@@ -91,7 +91,9 @@ function M.new(opts)
     end
 
     -- 排序 key 列表
-    table.sort(key_list)
+    table.sort(key_list, function(a, b)
+      return #a < #b
+    end)
 
     -- 获取所有语言
     -- local langs = require("i18n.config").options.static.langs or {}
