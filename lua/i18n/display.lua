@@ -6,6 +6,30 @@ local utils = require('i18n.utils')
 -- 命名空间
 local ns = vim.api.nvim_create_namespace('i18n_display')
 
+-- 当前显示语言索引（基于 config.options.static.langs）
+M._current_lang_index = 1
+
+-- 获取当前语言
+M.get_current_lang = function()
+  local langs = (config.options.static or {}).langs or {}
+  if #langs == 0 then return nil end
+  if not M._current_lang_index or M._current_lang_index > #langs then
+    M._current_lang_index = 1
+  end
+  return langs[M._current_lang_index]
+end
+
+-- 切换到下一个语言
+M.next_lang = function()
+  local langs = (config.options.static or {}).langs or {}
+  if #langs == 0 then
+    vim.notify("[i18n] 未配置 langs", vim.log.levels.WARN)
+    return
+  end
+  M._current_lang_index = (M._current_lang_index % #langs) + 1
+  M.refresh()
+end
+
 -- 提取国际化键
 local function extract_i18n_keys(line, patterns)
   local keys = {}
@@ -62,7 +86,7 @@ M.refresh_buffer = function(bufnr)
   vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
 
   local patterns = config.options.static.func_pattern
-  local default_lang = config.options.static.langs[1]
+  local default_lang = M.get_current_lang()
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
 
   -- 获取当前窗口和光标行
@@ -230,6 +254,14 @@ M.refresh = function()
       M.refresh_buffer(bufnr)
     end
   end
+end
+
+-- 定义切换语言命令（只注册一次）
+if not vim.g._i18n_next_lang_command_defined then
+  vim.api.nvim_create_user_command("I18nNextLang", function()
+    require('i18n.display').next_lang()
+  end, { desc = "循环切换 i18n 显示语言" })
+  vim.g._i18n_next_lang_command_defined = true
 end
 
 return M
