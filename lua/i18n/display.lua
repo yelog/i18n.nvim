@@ -164,7 +164,7 @@ M.show_popup = function()
   end
 
   -- 构建显示内容
-  local lines = { "Translations for: " .. current_key, "" }
+  local lines = { "I18n: " .. current_key, "" }
   for lang, text in pairs(translations) do
     table.insert(lines, string.format("%s: %s", lang, text))
   end

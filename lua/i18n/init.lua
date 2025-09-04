@@ -21,6 +21,11 @@ M.setup = function(opts)
   vim.api.nvim_create_user_command('I18nShowTranslations', function()
     display.show_popup()
   end, {})
+
+  vim.api.nvim_create_user_command('I18nToggleOrigin', function()
+    config.options.show_origin = not config.options.show_origin
+    display.refresh()
+  end, { desc = "Toggle i18n original text display/hide" })
 end
 
 return M
