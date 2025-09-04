@@ -1,4 +1,4 @@
--- 集成 fzf-lua 查询 i18n key (改进版本)
+-- 集成 fzf-lua 查询 i18n key (修复版本)
 local parser = require("i18n.parser")
 local fzf = require("fzf-lua")
 
@@ -75,39 +75,54 @@ function M.show_i18n_keys_with_fzf()
   end
 
   -- 排序 key 列表
+  -- 先按长度，再在长度相同条件下按字母序
   table.sort(key_list, function(a, b)
+    if #a == #b then
+      return a < b
+    end
     return #a < #b
   end)
-
 
   -- 获取所有语言
   local langs = require("i18n.config").options.static.langs or {}
 
-  -- 平分列宽：Key 列与语言列平均分配宽度，并在过宽时截断显示
+  -- 计算等宽的列宽
   local col_count = 1 + #langs
   local total_columns = vim.o.columns or 120
-  local separator_w = (col_count - 1) * 3           -- " │ " 分隔符总宽度
-  local available = total_columns - separator_w - 2 -- 预留边距
-  if available < col_count * 10 then
-    available = col_count * 10
-  end
-  local each_width = math.floor(available / col_count)
-  if each_width > 50 then
-    each_width = 50
-  end
+  local separator_width = (col_count - 1) * 3 -- " │ " 分隔符总宽度
+  local padding = 4                           -- 左右边距
+  local available_width = total_columns - separator_width - padding
+
+  -- 所有列等宽分配
+  local col_width = math.floor(available_width / col_count)
+
+  -- 设置最小和最大列宽限制
+  local min_col_width = 15 -- 最小列宽，确保能显示基本内容
+  local max_col_width = 40 -- 最大列宽，避免单列过宽
+
+  -- 应用限制
+  col_width = math.max(col_width, min_col_width)
+  col_width = math.min(col_width, max_col_width)
+
+  -- 创建列宽数组（所有列等宽）
   local col_widths = {}
   for i = 1, col_count do
-    col_widths[i] = each_width
+    col_widths[i] = col_width
   end
 
-  -- 构造多列
+  -- 构造显示列表
   local display_list = {}
-  -- 行 -> 完整 key 的映射，保证复制时能得到未截断 key
-  local display_to_key = {}
+  -- 行索引 -> 完整 key 的映射，保证复制时能得到未截断 key
+  local index_to_key = {}
 
-  -- 构造数据行（不包含表头）
-  for _, key in ipairs(key_list) do
+  -- 构造数据行
+  for index, key in ipairs(key_list) do
     local original_key = type(key) == "string" and key or tostring(key or "")
+
+    -- 保存索引到 key 的映射
+    index_to_key[index] = original_key
+
+    -- 构建显示行
     local display_key = truncate_text(original_key, col_widths[1])
     local row = { pad_right(display_key, col_widths[1]) }
 
@@ -118,12 +133,13 @@ function M.show_i18n_keys_with_fzf()
         value = lang_data[key]
       end
       value = type(value) == "string" and value or tostring(value or "")
+
       local truncated_value = truncate_text(value, col_widths[i + 1])
       table.insert(row, pad_right(truncated_value, col_widths[i + 1]))
     end
-    local line = table.concat(row, " │ ")
-    table.insert(display_list, line)
-    display_to_key[line] = original_key
+
+    local display_line = table.concat(row, " │ ")
+    table.insert(display_list, display_line)
   end
 
   -- 构造固定的表头
@@ -140,36 +156,70 @@ function M.show_i18n_keys_with_fzf()
   end
   local separator = table.concat(separator_parts, "─┼─")
 
+  -- 使用 fzf_exec 直接传递显示列表
   fzf.fzf_exec(display_list, {
     prompt = "I18n Key > ",
-    header = header .. "\n" .. separator, -- 固定表头
-    header_lines = 2,                     -- 固定表头行数
+    header = header .. "\n" .. separator,
+    header_lines = 2,
     actions = {
       ["default"] = function(selected)
         if selected and selected[1] then
-          local line = selected[1]
-          local key = display_to_key and display_to_key[line] or line:match("^([^│]+)"):gsub("%s+$", "")
-          vim.notify("选中 key: " .. key)
-          vim.fn.setreg('+', key)
+          -- 通过行内容找到对应的索引
+          local selected_line = selected[1]
+          for index, display_line in ipairs(display_list) do
+            if display_line == selected_line then
+              local key = index_to_key[index]
+              if key then
+                vim.notify("选中 key: " .. key)
+                vim.fn.setreg('+', key)
+              end
+              break
+            end
+          end
         end
       end,
       ["ctrl-c"] = function(selected)
         if selected and selected[1] then
-          local line = selected[1]
-          local key = display_to_key and display_to_key[line] or line:match("^([^│]+)"):gsub("%s+$", "")
-          vim.fn.setreg('+', key)
-          vim.notify("已复制 key 到剪贴板: " .. key)
+          -- 通过行内容找到对应的索引
+          local selected_line = selected[1]
+          for index, display_line in ipairs(display_list) do
+            if display_line == selected_line then
+              local key = index_to_key[index]
+              if key then
+                vim.fn.setreg('+', key)
+                vim.notify("已复制 key 到剪贴板: " .. key)
+              end
+              break
+            end
+          end
         end
       end,
     },
     fzf_opts = {
       ["--no-multi"] = "",
-      ["--no-sort"] = "", -- 保持预排序（按 key 长度）在过滤后依旧有效
+      ["--no-sort"] = "", -- 保持预排序
       ["--layout"] = "reverse",
       ["--info"] = "inline",
       ["--border"] = "rounded",
-    }
+      ["--ansi"] = "",     -- 启用 ANSI 颜色代码支持
+      ["--tabstop"] = "1", -- 设置 tab 宽度为 1，避免对齐问题
+    },
+    winopts = {
+      width = 0.9,  -- 窗口宽度占屏幕 90%
+      height = 0.8, -- 窗口高度占屏幕 80%
+      row = 0.5,    -- 垂直居中
+      col = 0.5,    -- 水平居中
+    },
   })
+end
+
+-- 可选：添加一个配置函数，允许用户自定义列宽策略
+function M.setup(opts)
+  opts = opts or {}
+  if opts.column_width_strategy then
+    -- 可以在这里添加其他列宽策略的支持
+    -- 例如: "equal", "adaptive", "custom"
+  end
 end
 
 return M
