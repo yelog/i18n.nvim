@@ -71,7 +71,8 @@ function M.new(opts)
   config = vim.tbl_deep_extend("keep", opts or {}, {
     insert = true,
     trigger = function()
-      return { "t('", 't("' } -- 包含可能的触发字符
+      -- 使用单字符触发，引号输入后再由 should_show_completion_items 精确判断上下文
+      return { "'", '"' }
     end,
   })
   self.get_trigger_characters = as_func(config.trigger)
@@ -112,25 +113,17 @@ end
 
 -- 更重要的是实现 should_show_completion_items 方法
 function M:should_show_completion_items(ctx)
-  local line = ctx.line
-  local col = ctx.cursor[2]
+  local before = ctx.line:sub(1, ctx.cursor[2])
 
-  -- 获取当前行到光标位置的文本
-  local before_cursor = string.sub(line, 1, col)
-
-  -- 检查是否在 $t('') 或 $t("") 的引号内
-  local pattern1 = "%$t%s*%(%s*['\"]([^'\"]*)"                         -- 匹配 $t('xxx 或 $t("xxx
-  local pattern2 = "%$t%s*%(%s*['\"][^'\"]*['\"]%s*,%s*['\"]([^'\"]*)" -- 匹配带参数的情况
-
-  -- 检查是否匹配第一个参数的引号内
-  local match1 = string.match(before_cursor, pattern1)
-  if match1 then
-    return true
-  end
-
-  -- 检查是否匹配第二个参数的引号内（如果有的话）
-  local match2 = string.match(before_cursor, pattern2)
-  if match2 then
+  -- 允许形式：
+  -- t(' |
+  -- t(" |
+  -- $t(' |
+  -- $t(" |
+  -- 或前面有 ( , [ 空格 .
+  -- 只匹配第一个参数未闭合的情况
+  if before:match("[%(,%[%s%.]%$?t%s*%(%s*['\"][^'\"]*$") or
+     before:match("^%$?t%s*%(%s*['\"][^'\"]*$") then
     return true
   end
 
@@ -139,20 +132,31 @@ end
 
 ---@param context blink.cmp.Context
 function M:get_completions(context, callback)
+  if not self:should_show_completion_items(context) then
+    return callback()
+  end
+
+  local before = context.line:sub(1, context.cursor[2])
+  local prefix = before:match("['\"]([^'\"]*)$")
+
+  local items = i18n_items
+  if prefix and prefix ~= "" then
+    local filtered = {}
+    for _, it in ipairs(i18n_items) do
+      if it.label:find(prefix, 1, true) then
+        table.insert(filtered, it)
+      end
+    end
+    items = filtered
+  end
+
   local task = async.task.empty():map(function()
-    local cursor_before_line = context.line:sub(1, context.cursor[2])
-    -- if
-    --     not keyword_pattern(cursor_before_line, self:get_trigger_characters())
-    -- then
-    --   callback()
-    -- else
     callback {
-      is_incomplete_forward = true,
-      is_incomplete_backward = true,
-      items = transform(i18n_items, context),
+      is_incomplete_forward = false,
+      is_incomplete_backward = false,
+      items = transform(items, context),
       context = context,
     }
-    -- end
   end)
   return function()
     task:cancel()
