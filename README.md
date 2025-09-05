@@ -4,7 +4,7 @@ A lightweight Neovim plugin for displaying and managing project i18n (translatio
 Designed for front-end projects (JSON, YAML, JS/TS translation modules) and integrates with Tree-sitter to parse JS/TS translation objects.
 
 > [!WARNING]
-> 此插件当前正在处于早期快速验证和开发阶段，配置和API可能随时有较大变动，请谨慎使用及关注更新日志
+> This plugin is currently in an early stage of rapid validation and development. Configuration and API may change significantly at any time. Please use with caution and keep an eye on the changelog.
 
 ## Key features
 
