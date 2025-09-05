@@ -104,6 +104,7 @@ M.refresh_buffer = function(bufnr)
 
   for line_num, line in ipairs(lines) do
     local keys = extract_i18n_keys(line, patterns)
+    vim.notify("keys: " .. vim.inspect(keys), vim.log.levels.DEBUG)
     for _, key_info in ipairs(keys) do
       local translation = nil
       if config.options.show_translation then

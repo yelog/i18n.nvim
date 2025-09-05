@@ -26,6 +26,30 @@ local function parse_yaml(content)
   return result
 end
 
+-- 解析 .properties 文件 (key=value / key:value，忽略 # 或 ! 开头注释，简单实现)
+local function parse_properties(content)
+  local result = {}
+  for line in content:gmatch("[^\r\n]+") do
+    -- 去除前后空白
+    local trimmed = line:match("^%s*(.-)%s*$")
+    -- 跳过空行与注释
+    if trimmed ~= "" and not trimmed:match("^#") and not trimmed:match("^!") then
+      -- 支持 key = value 或 key: value 或 key value（仅第一次分隔符）
+      local key, value = trimmed:match("^([^:=%s]+)%s*[:=]%s*(.*)$")
+      if not key then
+        -- 尝试空白分隔
+        key, value = trimmed:match("^([^%s]+)%s+(.*)$")
+      end
+      if key and value then
+        -- 去掉行尾续行反斜杠（不做跨行合并，简单处理）
+        value = value:gsub("\\$", "")
+        result[key] = value
+      end
+    end
+  end
+  return result
+end
+
 -- 解析 JS/TS 文件（使用 treesitter 支持递归任意深度）
 local function parse_js(content)
   local ts = vim.treesitter
@@ -136,6 +160,8 @@ local function parse_file(filepath)
     return parse_json(content)
   elseif ext == "yaml" or ext == "yml" then
     return parse_yaml(content)
+  elseif ext == "properties" or ext == "prop" then
+    return parse_properties(content)
   elseif ext == "js" or ext == "ts" then
     return parse_js(content)
   end

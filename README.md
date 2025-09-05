@@ -8,7 +8,7 @@ Designed for front-end projects (JSON, YAML, JS/TS translation modules) and inte
 
 ## Key features
 
-- Parse translation files in JSON, YAML and JS/TS (Tree-sitter based) formats.
+- Parse translation files in JSON, YAML, .properties and JS/TS (Tree-sitter based) formats.
 - Flatten nested translation objects into dot-separated keys (e.g. `system.title`).
 - Support static project configuration with language lists and flexible file patterns.
 - Inline virtual text display and popup helpers to preview translations (via Neovim API).
@@ -129,7 +129,7 @@ Patterns support placeholders like `{locales}` and custom variables such as `{mo
 
 ## How it works (brief)
 
-- JSON/YAML files are read and decoded (YAML support uses a simple line parser for common cases).
+- JSON/YAML/.properties files are read and decoded (.properties 使用简单 key=value 解析；YAML 使用简化解析器，仅覆盖常见场景)。
 - JS/TS modules are parsed with Tree-sitter to find exported objects (supports `export default`, `module.exports`, direct object literals, and nested objects). Parsed keys and string values are normalized (quotes removed) and flattened.
 - Translations are merged into an internal table keyed by language and dot-separated keys.
 
