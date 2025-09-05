@@ -69,11 +69,15 @@ vim.keymap.set("n", "<D-S-n>", require("i18n.integration.fzf").show_i18n_keys_wi
 ```lua
 -- Cycle display language (rotates langs; updates inline virtual text)
 vim.keymap.set("n", "<D-S-M-n>", "<cmd>I18nNextLang<CR>", { desc = "Cycle i18n display language" })
+-- Toggle whether inline shows the translated text or the raw i18n key
+vim.keymap.set("n", "<leader>io", "<cmd>I18nToggleOrigin<CR>", { desc = "Toggle i18n origin display" })
 ```
 
-Command:
-- :I18nNextLang  
+Commands:
+- :**I18nNextLang**
   Cycles the active display language used for inline virtual text. It moves to the next entry in `langs` (wrapping back to the first). Inline overlays refresh automatically.
+- :**I18nToggleOrigin**
+  Toggles between showing the translated text (current language) and the raw/original i18n key in inline virtual text. When disabled you can easily copy / inspect the key names; toggling again restores the translation overlay.
 
 ## blink.cmp Integration
 
