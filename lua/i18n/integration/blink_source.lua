@@ -134,16 +134,37 @@ end
 function M:should_show_completion_items(ctx)
   local before = ctx.line:sub(1, ctx.cursor[2])
 
-  -- 允许形式：
-  -- t(' |
-  -- t(" |
-  -- $t(' |
-  -- $t(" |
-  -- 或前面有 ( , [ 空格 .
-  -- 只匹配第一个参数未闭合的情况
-  if before:match("[%(,%[%s%.]%$?t%s*%(%s*['\"][^'\"]*$") or
-      before:match("^%$?t%s*%(%s*['\"][^'\"]*$") then
-    return true
+  -- 基于 config.func_pattern 动态判断是否位于首个参数未闭合的引号中
+  local ok_cfg, plugin_cfg = pcall(require, "i18n.config")
+  if not ok_cfg or not plugin_cfg.options then
+    return false
+  end
+  local func_patterns = plugin_cfg.options.func_pattern
+  if type(func_patterns) ~= "table" or vim.tbl_isempty(func_patterns) then
+    return false
+  end
+
+  for _, pat in ipairs(func_patterns) do
+    if type(pat) == "string" then
+      -- 查找模式里第一次出现的 "%("（表示字面 "(" ）
+      local pos = pat:find("%(", 1, true) -- plain 查找字面 "%("
+      if pos then
+        local prefix = pat:sub(1, pos - 1)          -- 例如 "%$t" / "t" / "LangUtil.get"
+        -- 去除前缀里对非字母数字字符的转义，如 %$ -> $，保留用户真实输入形式
+        local raw_prefix = prefix
+          :gsub("%%(%W)", "%1")  -- %$  %.  %_ 等
+          :gsub("%%%%", "%%")    -- 处理可能的 '%%%%' -> '%%'
+
+        -- 将原始前缀转义为安全的 lua pattern 片段
+        local esc = vim.pesc(raw_prefix)
+
+        -- 组合匹配：<prefix> ( 可有空格 ) ( 后紧跟首个引号 且尚未闭合 )
+        local dynamic_pattern = esc .. "%s*%(%s*['\"][^'\"]*$"
+        if before:match(dynamic_pattern) then
+          return true
+        end
+      end
+    end
   end
 
   return false
