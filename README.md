@@ -28,6 +28,7 @@ Example configuration using lazy.nvim:
 {
   'yelog/i18n.nvim',
   lazy = true,
+  ft = { "vue", "typescript" },
   dependencies = {
     'ibhagwan/fzf-lua',
     'nvim-treesitter/nvim-treesitter'
