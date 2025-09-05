@@ -117,15 +117,82 @@ require('blink.cmp').setup({
 
 ## Configuration
 
-The plugin exposes `require('i18n').setup(opts)` where `opts` is merged with defaults. Common options:
+The plugin exposes `require('i18n').setup(opts)` where `opts` is merged with defaults.
 
+Merge precedence (highest last):
+1. Built-in defaults (internal)
+2. Options passed to `require('i18n').setup({...})`
+3. Project-level config file in the current working directory (if present)
+
+So a project config will override anything you set in your Neovim config for that particular project.
+
+Common options (all optional when a project file is present):
 - locales: array of language codes, first is considered default
 - files: array of file patterns or objects:
   - string pattern e.g. `src/locales/{locales}.json`
   - table: `{ files = "pattern", prefix = "optional.prefix." }`
 - func_pattern: array of Lua patterns to locate i18n function usages in source files
+- show_translation / show_origin: control inline rendering behavior
+- filetypes / ft: restrict which filetypes are processed
 
 Patterns support placeholders like `{locales}` and custom variables such as `{module}` which will be expanded by scanning the project tree.
+
+### Project-level configuration (recommended)
+
+You can place a project-specific config file at the project root. The plugin will auto-detect (in order) the first existing file:
+- `.i18nrc.json`
+- `i18n.config.json`
+- `.i18nrc.lua`
+
+If found, its values override anything you passed to `setup()`.
+
+Example `.i18nrc.json`:
+```json
+{
+  "locales": ["en_US", "zh_CN"],
+  "files": [
+    "src/locales/{locales}.json",
+    { "files": "src/locales/lang/{locales}/{module}.ts", "prefix": "{module}." }
+  ]
+}
+```
+
+Example `.i18nrc.lua`:
+```lua
+return {
+  locales = { "en_US", "zh_CN" },
+  files = {
+    "src/locales/{locales}.json",
+    { files = "src/locales/lang/{locales}/{module}.ts", prefix = "{module}." },
+  },
+  func_pattern = {
+    "t%(['\"]([^'\"]+)['\"]",
+    "%$t%(['\"]([^'\"]+)['\"]",
+  },
+  show_translation = true,
+  show_origin = false,
+}
+```
+
+Minimal Neovim config (global defaults) – can be empty or partial:
+```lua
+require('i18n').setup({
+  locales = { 'en', 'zh' },  -- acts as a fallback if project file absent
+  files = { 'src/locales/{locales}.json' },
+})
+```
+
+If later you add a project config file, just reopen the project (or call:
+```lua
+require('i18n.config').reload_project_config()
+require('i18n').setup(require('i18n.config').options)
+```
+) to apply overrides.
+
+### Notes
+- Unknown fields in project config are ignored.
+- You can keep a very small user-level setup and let each project define its own structure.
+- If you frequently switch branches that add/remove locale files, you may want to trigger a manual reload (e.g. a custom command that re-runs `setup()`).
 
 ## How it works (brief)
 
