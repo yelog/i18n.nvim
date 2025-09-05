@@ -77,8 +77,12 @@ function M.new(opts)
   })
   self.get_trigger_characters = as_func(config.trigger)
   if not i18n_items then
-    -- 增加对 parser.translations 的 nil 检查
-    local translations = require("i18n.parser").translations or {}
+    -- 增加对 parser.translations 的 nil 检查 (使用 pcall 避免 require 失败导致循环加载错误)
+    local translations = {}
+    local ok_parser, parser_mod = pcall(require, "i18n.parser")
+    if ok_parser and type(parser_mod) == "table" then
+      translations = parser_mod.translations or {}
+    end
     local keys_map = {}
     for _, lang_tbl in pairs(translations) do
       for k, _ in pairs(lang_tbl) do
