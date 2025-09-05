@@ -10,12 +10,6 @@ M.defaults = {
   locales = { "en", "zh" },
   files = {
     "src/locales/{locales}.json",
-  },
-  completion = {
-    enable = true,
-    engine = 'auto', -- 'auto' | 'cmp' | 'blink'
-    max_items = 15,
-    fuzzy = true,
   }
 }
 
