@@ -30,18 +30,18 @@ end
 local function parse_js(content)
   local ts = vim.treesitter
   local parser = nil
-  local lang = nil
+  local language = nil
 
   -- 自动判断语言类型
   if content:match("export%s+default") or content:match("module%.exports") then
-    lang = "javascript"
+    language = "javascript"
   else
-    lang = "typescript"
+    language = "typescript"
   end
 
   -- treesitter 解析
   local ok, tree = pcall(function()
-    parser = ts.get_string_parser(content, lang)
+    parser = ts.get_string_parser(content, language)
     return parser:parse()[1]
   end)
   if not ok or not tree then
@@ -89,7 +89,7 @@ local function parse_js(content)
 
         -- 去除 key 两侧的引号（若有）
         if #key >= 2 then
-          local kfirst = key:sub(1,1)
+          local kfirst = key:sub(1, 1)
           local klast = key:sub(-1)
           if (kfirst == '"' or kfirst == "'" or kfirst == "`") and klast == kfirst then
             key = key:sub(2, -2)
@@ -103,7 +103,7 @@ local function parse_js(content)
 
           -- 去除 value 两侧的引号（若有）
           if #value >= 2 then
-            local vfirst = value:sub(1,1)
+            local vfirst = value:sub(1, 1)
             local vlast = value:sub(-1)
             if (vfirst == '"' or vfirst == "'" or vfirst == "`") and vlast == vfirst then
               value = value:sub(2, -2)
@@ -219,11 +219,11 @@ local function scan_vars(pattern, vars, idx, cb)
   end
 end
 
--- 提取所有自定义变量（不包括 langs）
+-- 提取所有自定义变量（不包括 locales）
 local function extract_vars(str)
   local vars = {}
   for var in str:gmatch("{([%w_]+)}") do
-    if var ~= "langs" then
+    if var ~= "locales" then
       table.insert(vars, var)
     end
   end
@@ -284,12 +284,12 @@ local function fill_prefix(actual_file, filepath, prefix)
 end
 
 -- 加载单个文件配置
-local function load_file_config(file_config, lang)
+local function load_file_config(file_config, locale)
   local files_pattern = type(file_config) == "string" and file_config or file_config.files
   local prefix = type(file_config) == "table" and file_config.prefix or ""
 
-  -- 替换 {langs} 占位符
-  local filepath = files_pattern:gsub("{langs}", lang)
+  -- 替换 {locales} 占位符
+  local filepath = files_pattern:gsub("{locales}", locale)
   local vars = extract_vars(filepath)
   if #vars > 0 then
     -- 存在自定义变量，递归扫描
@@ -300,8 +300,8 @@ local function load_file_config(file_config, lang)
       if utils.file_exists(actual_file) then
         local data = parse_file(actual_file)
         if data then
-          M.translations[lang] = M.translations[lang] or {}
-          deep_merge(M.translations[lang], data, actual_prefix)
+          M.translations[locale] = M.translations[locale] or {}
+          deep_merge(M.translations[locale], data, actual_prefix)
         end
       end
     end)
@@ -310,8 +310,8 @@ local function load_file_config(file_config, lang)
     if utils.file_exists(filepath) then
       local data = parse_file(filepath)
       if data then
-        M.translations[lang] = M.translations[lang] or {}
-        deep_merge(M.translations[lang], data, prefix)
+        M.translations[locale] = M.translations[locale] or {}
+        deep_merge(M.translations[locale], data, prefix)
       end
     end
   end
@@ -322,17 +322,17 @@ M.load_translations = function()
   M.translations = {}
   local options = config.options
 
-  for _, lang in ipairs(options.langs) do
+  for _, locale in ipairs(options.locales) do
     for _, file_config in ipairs(options.files) do
       -- 判断 {module} 后面是文件后缀还是 /
       local files_pattern = type(file_config) == "string" and file_config or file_config.files
-      local filepath = files_pattern:gsub("{langs}", lang)
+      local filepath = files_pattern:gsub("{locales}", locale)
       local ext = nil
       if filepath:match("{module}") then
         ext = filepath:match("{module}%.([%w_]+)")
         if ext then ext = "." .. ext end
       end
-      load_file_config(file_config, lang)
+      load_file_config(file_config, locale)
     end
   end
 
@@ -351,11 +351,11 @@ M.load_translations = function()
 end
 
 -- 获取特定语言的翻译
-M.get_translation = function(key, lang)
-  local langs = config.options.langs
-  lang = lang or (langs and langs[1])
-  if M.translations[lang] and M.translations[lang][key] then
-    return M.translations[lang][key]
+M.get_translation = function(key, locale)
+  local locales = config.options.locales
+  locale = locale or (locales and locales[1])
+  if M.translations[locale] and M.translations[locale][key] then
+    return M.translations[locale][key]
   end
   return nil
 end
@@ -363,9 +363,9 @@ end
 -- 获取所有语言的翻译
 M.get_all_translations = function(key)
   local result = {}
-  for lang, translations in pairs(M.translations) do
+  for locale, translations in pairs(M.translations) do
     if translations[key] then
-      result[lang] = translations[key]
+      result[locale] = translations[key]
     end
   end
   return result

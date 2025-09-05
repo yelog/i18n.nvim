@@ -7,9 +7,9 @@ M.defaults = {
     "t%(['\"]([^'\"]+)['\"]",
     "%$t%(['\"]([^'\"]+)['\"]",
   },
-  langs = { "en", "zh" },
+  locales = { "en", "zh" },
   files = {
-    "src/locales/{langs}.json",
+    "src/locales/{locales}.json",
   },
   completion = {
     enable = true,

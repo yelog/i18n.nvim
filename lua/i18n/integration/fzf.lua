@@ -63,8 +63,8 @@ function M.show_i18n_keys_with_fzf()
   -- 增加对 parser.translations 的 nil 检查
   local translations = parser.translations or {}
   local keys_map = {}
-  for _, lang_tbl in pairs(translations) do
-    for k, _ in pairs(lang_tbl) do
+  for _, locale_tbl in pairs(translations) do
+    for k, _ in pairs(locale_tbl) do
       keys_map[k] = true
     end
   end
@@ -84,10 +84,10 @@ function M.show_i18n_keys_with_fzf()
   end)
 
   -- 获取所有语言
-  local langs = require("i18n.config").options.langs or {}
+  local locales = require("i18n.config").options.locales or {}
 
   -- 计算等宽的列宽
-  local col_count = 1 + #langs
+  local col_count = 1 + #locales
   local total_columns = vim.o.columns or 120
   local separator_width = (col_count - 1) * 3 -- " │ " 分隔符总宽度
   local padding = 4                           -- 左右边距
@@ -126,11 +126,11 @@ function M.show_i18n_keys_with_fzf()
     local display_key = truncate_text(original_key, col_widths[1])
     local row = { pad_right(display_key, col_widths[1]) }
 
-    for i, lang in ipairs(langs) do
+    for i, locale in ipairs(locales) do
       local value = ""
-      local lang_data = translations[lang]
-      if lang_data and type(lang_data) == 'table' and lang_data[key] ~= nil then
-        value = lang_data[key]
+      local locale_data = translations[locale]
+      if locale_data and type(locale_data) == 'table' and locale_data[key] ~= nil then
+        value = locale_data[key]
       end
       value = type(value) == "string" and value or tostring(value or "")
 
@@ -144,8 +144,8 @@ function M.show_i18n_keys_with_fzf()
 
   -- 构造固定的表头
   local header_row = { pad_right("Key", col_widths[1]) }
-  for i, lang in ipairs(langs) do
-    table.insert(header_row, pad_right(lang, col_widths[i + 1]))
+  for i, locale in ipairs(locales) do
+    table.insert(header_row, pad_right(locale, col_widths[i + 1]))
   end
   local header = table.concat(header_row, " │ ")
 

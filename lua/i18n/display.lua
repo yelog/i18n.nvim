@@ -5,27 +5,27 @@ local parser = require('i18n.parser')
 -- 命名空间
 local ns = vim.api.nvim_create_namespace('i18n_display')
 
--- 当前显示语言索引（基于 config.langs）
-M._current_lang_index = 1
+-- 当前显示语言索引（基于 config.locales）
+M._current_locale_index = 1
 
 -- 获取当前语言
-M.get_current_lang = function()
-  local langs = (config.options or {}).langs or {}
-  if #langs == 0 then return nil end
-  if not M._current_lang_index or M._current_lang_index > #langs then
-    M._current_lang_index = 1
+M.get_current_locale = function()
+  local locales = (config.options or {}).locales or {}
+  if #locales == 0 then return nil end
+  if not M._current_locale_index or M._current_locale_index > #locales then
+    M._current_locale_index = 1
   end
-  return langs[M._current_lang_index]
+  return locales[M._current_locale_index]
 end
 
 -- 切换到下一个语言
-M.next_lang = function()
-  local langs = (config.options or {}).langs or {}
-  if #langs == 0 then
-    vim.notify("[i18n] 未配置 langs", vim.log.levels.WARN)
+M.next_locale = function()
+  local locales = (config.options or {}).locales or {}
+  if #locales == 0 then
+    vim.notify("[i18n] 未配置 locales", vim.log.levels.WARN)
     return
   end
-  M._current_lang_index = (M._current_lang_index % #langs) + 1
+  M._current_locale_index = (M._current_locale_index % #locales) + 1
   M.refresh()
 end
 
@@ -85,7 +85,7 @@ M.refresh_buffer = function(bufnr)
   vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
 
   local patterns = config.options.func_pattern
-  local default_lang = M.get_current_lang()
+  local default_locale = M.get_current_locale()
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
 
   -- 获取当前窗口和光标行
@@ -107,7 +107,7 @@ M.refresh_buffer = function(bufnr)
     for _, key_info in ipairs(keys) do
       local translation = nil
       if config.options.show_translation then
-        translation = parser.get_translation(key_info.key, default_lang)
+        translation = parser.get_translation(key_info.key, default_locale)
         if translation then
           -- 如果当前行为光标所在行，则不显示虚拟文本
           if not cursor_line or line_num ~= cursor_line then
@@ -165,8 +165,8 @@ M.show_popup = function()
 
   -- 构建显示内容
   local lines = { "I18n: " .. current_key, "" }
-  for lang, text in pairs(translations) do
-    table.insert(lines, string.format("%s: %s", lang, text))
+  for locale, text in pairs(translations) do
+    table.insert(lines, string.format("%s: %s", locale, text))
   end
 
   -- 创建浮动窗口
@@ -256,11 +256,11 @@ M.refresh = function()
 end
 
 -- 定义切换语言命令（只注册一次）
-if not vim.g._i18n_next_lang_command_defined then
-  vim.api.nvim_create_user_command("I18nNextLang", function()
-    require('i18n.display').next_lang()
-  end, { desc = "循环切换 i18n 显示语言" })
-  vim.g._i18n_next_lang_command_defined = true
+if not vim.g._i18n_next_locale_command_defined then
+  vim.api.nvim_create_user_command("I18nNextLocale", function()
+    require('i18n.display').next_locale()
+  end, { desc = "Cycle switch i18n display language" })
+  vim.g._i18n_next_locale_command_defined = true
 end
 
 return M

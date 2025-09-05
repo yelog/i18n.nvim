@@ -84,8 +84,8 @@ function M.new(opts)
       translations = parser_mod.translations or {}
     end
     local keys_map = {}
-    for _, lang_tbl in pairs(translations) do
-      for k, _ in pairs(lang_tbl) do
+    for _, locale_tbl in pairs(translations) do
+      for k, _ in pairs(locale_tbl) do
         keys_map[k] = true
       end
     end
@@ -101,13 +101,13 @@ function M.new(opts)
     end)
 
     -- 获取所有语言
-    local langs = require("i18n.config").options.langs or {}
+    local locales = require("i18n.config").options.locales or {}
 
     i18n_items = {}
     for _, k in ipairs(key_list) do
       local default_val = nil
-      if #langs > 0 and translations[langs[1]] then
-        default_val = translations[langs[1]][k]
+      if #locales > 0 and translations[locales[1]] then
+        default_val = translations[locales[1]][k]
       end
       if type(default_val) == "table" then
         local ok, json = pcall(vim.json.encode, default_val)
@@ -194,21 +194,21 @@ function M:resolve(item, callback)
   local ok_parser, parser = pcall(require, "i18n.parser")
   local ok_config, cfg = pcall(require, "i18n.config")
   if ok_parser and ok_config and cfg.options and cfg.options then
-    local langs = cfg.options.langs or {}
+    local locales = cfg.options.locales or {}
     local trans_tbl = {}
     if parser.get_all_translations then
       trans_tbl = parser.get_all_translations(resolved.label) or {}
     elseif parser.translations then
-      for _, lang in ipairs(langs) do
-        local lang_tbl = parser.translations[lang] or {}
-        if lang_tbl[resolved.label] then
-          trans_tbl[lang] = lang_tbl[resolved.label]
+      for _, locale in ipairs(locales) do
+        local locale_tbl = parser.translations[locale] or {}
+        if locale_tbl[resolved.label] then
+          trans_tbl[locale] = locale_tbl[resolved.label]
         end
       end
     end
     local lines = {}
-    for _, lang in ipairs(langs) do
-      local v = trans_tbl[lang]
+    for _, locale in ipairs(locales) do
+      local v = trans_tbl[locale]
       if type(v) == "table" then
         local okj, json = pcall(vim.json.encode, v)
         if okj then
@@ -220,12 +220,12 @@ function M:resolve(item, callback)
       if v == nil then
         v = "(missing)"
       end
-      lines[#lines + 1] = string.format("%s: %s", lang, v)
+      lines[#lines + 1] = string.format("%s: %s", locale, v)
     end
     if #lines > 0 then
       resolved.documentation = table.concat(lines, "\n")
-      if not resolved.detail and langs[1] then
-        resolved.detail = trans_tbl[langs[1]] and tostring(trans_tbl[langs[1]]) or nil
+      if not resolved.detail and locales[1] then
+        resolved.detail = trans_tbl[locales[1]] and tostring(trans_tbl[locales[1]]) or nil
       end
     end
   end

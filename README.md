@@ -9,7 +9,7 @@ Designed for front-end projects (JSON, YAML, JS/TS translation modules) and inte
 - Flatten nested translation objects into dot-separated keys (e.g. `system.title`).
 - Support static project configuration with language lists and flexible file patterns.
 - Inline virtual text display and popup helpers to preview translations (via Neovim API).
-- Recursive variable expansion in file patterns (e.g. `{module}`, `{langs}`).
+- Recursive variable expansion in file patterns (e.g. `{module}`, `{locales}`).
 - Fast, zero-dependency core (relies on Neovim builtin APIs and Tree-sitter).
 
 ## Requirements
@@ -32,12 +32,12 @@ Example configuration using lazy.nvim:
   config = function()
     require('i18n').setup({
       -- List of languages to parse, the first is considered the default language
-      langs = { 'en', 'zh' },
+      locales = { 'en', 'zh' },
       -- files can be string or table { files = "...", prefix = "..." }
       files = {
-        'src/locales/{langs}.json',
-        -- { files = "src/locales/lang/{langs}/{module}.ts",            prefix = "{module}." },
-        -- { files = "src/views/{bu}/locales/lang/{langs}/{module}.ts", prefix = "{bu}.{module}." },
+        'src/locales/{locales}.json',
+        -- { files = "src/locales/lang/{locales}/{module}.ts",            prefix = "{module}." },
+        -- { files = "src/views/{bu}/locales/lang/{locales}/{module}.ts", prefix = "{bu}.{module}." },
       },
       -- function patterns used to detect i18n keys in code
       func_pattern = {
@@ -52,7 +52,7 @@ Example configuration using lazy.nvim:
 ## Quickstart
 
 1. Install the plugin with lazy.nvim (see above).
-2. Configure `files` and `langs` to match your project layout.
+2. Configure `files` and `locales` to match your project layout.
 3. Ensure Tree-sitter parsers for JavaScript / TypeScript are installed (e.g. via nvim-treesitter).
 4. Open a source file and use the provided commands / keymaps to show translations and inline virtual text.
 
@@ -67,15 +67,15 @@ vim.keymap.set("n", "<D-S-n>", require("i18n.integration.fzf").show_i18n_keys_wi
 
 
 ```lua
--- Cycle display language (rotates langs; updates inline virtual text)
-vim.keymap.set("n", "<D-S-M-n>", "<cmd>I18nNextLang<CR>", { desc = "Cycle i18n display language" })
+-- Cycle display language (rotates locales; updates inline virtual text)
+vim.keymap.set("n", "<D-S-M-n>", "<cmd>I18nNextLocale<CR>", { desc = "Cycle i18n display language" })
 -- Toggle whether inline shows the translated text or the raw i18n key
 vim.keymap.set("n", "<leader>io", "<cmd>I18nToggleOrigin<CR>", { desc = "Toggle i18n origin display" })
 ```
 
 Commands:
-- :**I18nNextLang**
-  Cycles the active display language used for inline virtual text. It moves to the next entry in `langs` (wrapping back to the first). Inline overlays refresh automatically.
+- :**I18nNextLocale**
+  Cycles the active display language used for inline virtual text. It moves to the next entry in `locales` (wrapping back to the first). Inline overlays refresh automatically.
 - :**I18nToggleOrigin**
   Toggles between showing the translated text (current language) and the raw/original i18n key in inline virtual text. When disabled you can easily copy / inspect the key names; toggling again restores the translation overlay.
 
@@ -115,13 +115,13 @@ require('blink.cmp').setup({
 
 The plugin exposes `require('i18n').setup(opts)` where `opts` is merged with defaults. Common options:
 
-- langs: array of language codes, first is considered default
+- locales: array of language codes, first is considered default
 - files: array of file patterns or objects:
-  - string pattern e.g. `src/locales/{langs}.json`
+  - string pattern e.g. `src/locales/{locales}.json`
   - table: `{ files = "pattern", prefix = "optional.prefix." }`
 - func_pattern: array of Lua patterns to locate i18n function usages in source files
 
-Patterns support placeholders like `{langs}` and custom variables such as `{module}` which will be expanded by scanning the project tree.
+Patterns support placeholders like `{locales}` and custom variables such as `{module}` which will be expanded by scanning the project tree.
 
 ## How it works (brief)
 
