@@ -29,6 +29,33 @@ M.next_locale = function()
   M.refresh()
 end
 
+-- 判断文件类型是否需要处理（动态适配插件使用者在插件管理器里设置的 ft）
+local function is_supported_ft(bufnr)
+  bufnr = bufnr or 0
+  local ft = vim.api.nvim_buf_get_option(bufnr, 'filetype')
+  local opts = config.options or {}
+  -- 允许用户通过 options.filetypes 或 options.ft 传入
+  local fts = opts.filetypes or opts.ft
+  if type(fts) == 'table' and #fts > 0 then
+    for _, v in ipairs(fts) do
+      if v == ft then return true end
+    end
+    return false
+  end
+  -- 默认支持的文件类型集合（未显式配置时）
+  local default = {
+    vue = true,
+    javascript = true,
+    typescript = true,
+    typescriptreact = true,
+    javascriptreact = true,
+    tsx = true,
+    jsx = true,
+    java = true,
+  }
+  return default[ft] == true
+end
+
 -- 提取国际化键
 local function extract_i18n_keys(line, patterns)
   local keys = {}
@@ -80,6 +107,7 @@ end
 -- 刷新缓冲区显示
 M.refresh_buffer = function(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
+  if not is_supported_ft(bufnr) then return end
 
   -- 清除旧的虚拟文本
   vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
@@ -104,7 +132,7 @@ M.refresh_buffer = function(bufnr)
 
   for line_num, line in ipairs(lines) do
     local keys = extract_i18n_keys(line, patterns)
-    vim.notify("keys: " .. vim.inspect(keys), vim.log.levels.DEBUG)
+    -- vim.notify("keys: " .. vim.inspect(keys), vim.log.levels.DEBUG)
     for _, key_info in ipairs(keys) do
       local translation = nil
       if config.options.show_translation then
@@ -214,8 +242,9 @@ M.setup_replace_mode = function()
   -- 文件打开时刷新
   vim.api.nvim_create_autocmd({ 'BufEnter', 'BufWritePost' }, {
     group = group,
-    pattern = { '*.vue', '*.js', '*.jsx', '*.ts', '*.tsx' },
+    pattern = '*',
     callback = function(args)
+      if not is_supported_ft(args.buf) then return end
       M.refresh_buffer(args.buf)
     end
   })
@@ -223,8 +252,9 @@ M.setup_replace_mode = function()
   -- 文本改变时刷新
   vim.api.nvim_create_autocmd({ 'TextChanged', 'TextChangedI' }, {
     group = group,
-    pattern = { '*.vue', '*.js', '*.jsx', '*.ts', '*.tsx' },
+    pattern = '*',
     callback = function(args)
+      if not is_supported_ft(args.buf) then return end
       vim.defer_fn(function()
         M.refresh_buffer(args.buf)
       end, 100)
@@ -234,8 +264,9 @@ M.setup_replace_mode = function()
   -- 光标移动时刷新（用于隐藏/显示当前行虚拟文本）
   vim.api.nvim_create_autocmd({ 'CursorMoved', 'CursorMovedI' }, {
     group = group,
-    pattern = { '*.vue', '*.js', '*.jsx', '*.ts', '*.tsx' },
+    pattern = '*',
     callback = function(args)
+      if not is_supported_ft(args.buf) then return end
       M.refresh_buffer(args.buf)
     end
   })
