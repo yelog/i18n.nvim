@@ -129,11 +129,18 @@ So a project config will override anything you set in your Neovim config for tha
 Common options (all optional when a project file is present):
 - locales: array of language codes, first is considered default
 - files: array of file patterns or objects:
-  - string pattern e.g. `src/locales/{locales}.json`
-  - table: `{ files = "pattern", prefix = "optional.prefix." }`
+  * string pattern e.g. `src/locales/{locales}.json`
+  * table: `{ files = "pattern", prefix = "optional.prefix." }`
 - func_pattern: array of Lua patterns to locate i18n function usages in source files
 - show_translation / show_origin: control inline rendering behavior
 - filetypes / ft: restrict which filetypes are processed
+- diagnostic: controls missing translation diagnostics (see below):
+  * `false`: disable diagnostics entirely (existing ones are cleared)
+  * `true`: enable diagnostics with default behavior (ERROR severity for missing translations)
+  * `{ ... }` (table): enable diagnostics and pass the table as the 4th argument to `vim.diagnostic.set` (e.g. `{ underline = false, virtual_text = false }`)
+
+Diagnostics
+If `diagnostic` is enabled (true or a table), the plugin emits diagnostics for missing translations at the position of the i18n key. When a table is provided, it is forwarded verbatim to `vim.diagnostic.set(namespace, bufnr, diagnostics, opts)` allowing you to tune presentation (underline, virtual_text, signs, severity_sort, etc). Setting `diagnostic = false` both suppresses generation and clears previously shown diagnostics for the buffer.
 
 Patterns support placeholders like `{locales}` and custom variables such as `{module}` which will be expanded by scanning the project tree.
 

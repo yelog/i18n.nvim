@@ -112,15 +112,18 @@ M.refresh_buffer = function(bufnr)
 
   -- 清除旧的虚拟文本
   vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
-  -- 重置诊断
+  -- 诊断配置处理
+  local diag_opt = (config.options or {}).diagnostic
+  local diag_enabled = diag_opt ~= false
   if vim.diagnostic then
+    -- 如果禁用或需要刷新都先清空
     vim.diagnostic.reset(diag_ns, bufnr)
   end
 
   local patterns = config.options.func_pattern
   local default_locale = M.get_current_locale()
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-  local diagnostics = {}
+  local diagnostics = diag_enabled and {} or nil
 
   -- 获取当前窗口和光标行
   local current_win = vim.api.nvim_get_current_win()
@@ -149,7 +152,7 @@ M.refresh_buffer = function(bufnr)
         end
       end
 
-      if not translation then
+      if diag_enabled and not translation then
         table.insert(diagnostics, {
           lnum = line_num - 1,
           col = key_info.start_pos - 1,
@@ -175,15 +178,21 @@ M.refresh_buffer = function(bufnr)
       end
     end
   end
-  if vim.diagnostic and #diagnostics > 0 then
-    vim.diagnostic.set(diag_ns, bufnr, diagnostics, {
-      underline = true,
-      virtual_text = {
-        prefix = "󰊿",
-      },
-      signs = true,
-      severity_sort = true,
-    })
+  if vim.diagnostic then
+    if diag_enabled then
+      if diagnostics and #diagnostics > 0 then
+        if type(diag_opt) == "table" then
+          vim.diagnostic.set(diag_ns, bufnr, diagnostics, diag_opt)
+        else
+          vim.diagnostic.set(diag_ns, bufnr, diagnostics)
+        end
+      else
+        vim.diagnostic.reset(diag_ns, bufnr)
+      end
+    else
+      -- 禁用诊断时保证清空
+      vim.diagnostic.reset(diag_ns, bufnr)
+    end
   end
 end
 

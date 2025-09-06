@@ -3,6 +3,7 @@ local M = {}
 M.defaults = {
   show_translation = true,
   show_origin = false,
+  diagnostics = true,
   func_pattern = {
     "t%(['\"]([^'\"]+)['\"]",
     "%$t%(['\"]([^'\"]+)['\"]",
