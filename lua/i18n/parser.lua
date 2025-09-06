@@ -311,11 +311,12 @@ end
 
 -- 加载单个文件配置
 local function load_file_config(file_config, locale)
-  local files_pattern = type(file_config) == "string" and file_config or file_config.files
+  local pattern = type(file_config) == "string" and file_config
+      or file_config.pattern
   local prefix = type(file_config) == "table" and file_config.prefix or ""
 
   -- 替换 {locales} 占位符
-  local filepath = files_pattern:gsub("{locales}", locale)
+  local filepath = pattern:gsub("{locales}", locale)
   local vars = extract_vars(filepath)
   if #vars > 0 then
     -- 存在自定义变量，递归扫描
@@ -349,10 +350,12 @@ M.load_translations = function()
   local options = config.options
 
   for _, locale in ipairs(options.locales) do
-    for _, file_config in ipairs(options.files) do
+    local sources = options.sources or {}
+    for _, file_config in ipairs(sources) do
       -- 判断 {module} 后面是文件后缀还是 /
-      local files_pattern = type(file_config) == "string" and file_config or file_config.files
-      local filepath = files_pattern:gsub("{locales}", locale)
+      local pattern = type(file_config) == "string" and file_config
+          or file_config.pattern
+      local filepath = pattern:gsub("{locales}", locale)
       local ext = nil
       if filepath:match("{module}") then
         ext = filepath:match("{module}%.([%w_]+)")

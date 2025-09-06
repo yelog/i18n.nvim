@@ -9,7 +9,7 @@ M.defaults = {
     "%$t%(['\"]([^'\"]+)['\"]",
   },
   locales = { "en", "zh" },
-  files = {
+  sources = {
     "src/locales/{locales}.json",
   }
 }
@@ -63,17 +63,14 @@ end
 -- opts 预期形式（已移除 default 层级，用户直接传配置）：
 -- require('i18n').setup({
 --   locales = {...},
---   files = {...},
+--   sources = {...},
 -- })
 M.setup = function(opts)
   opts = opts or {}
-  -- 用户直接传入的配置（不再支持 default 包裹层）
   local user_config = opts
 
-  -- 加载 / 刷新项目级配置（项目配置覆盖用户传入）
   local project_cfg = M.reload_project_config()
 
-  -- 合并顺序：内置默认 -> 用户配置 -> 项目配置
   M.options = vim.tbl_deep_extend('force', M.defaults, user_config, project_cfg or {})
 
   return M.options

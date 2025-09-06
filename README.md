@@ -37,11 +37,11 @@ Example configuration using lazy.nvim:
     require('i18n').setup({
       -- List of languages to parse, the first is considered the default language
       locales = { 'en', 'zh' },
-      -- files can be string or table { files = "...", prefix = "..." }
-      files = {
+      -- sources can be string or table { pattern = "...", prefix = "..." }
+      sources = {
         'src/locales/{locales}.json',
-        -- { files = "src/locales/lang/{locales}/{module}.ts",            prefix = "{module}." },
-        -- { files = "src/views/{bu}/locales/lang/{locales}/{module}.ts", prefix = "{bu}.{module}." },
+        -- { pattern = "src/locales/lang/{locales}/{module}.ts",            prefix = "{module}." },
+        -- { pattern = "src/views/{bu}/locales/lang/{locales}/{module}.ts", prefix = "{bu}.{module}." },
       },
       -- function patterns used to detect i18n keys in code
       func_pattern = {
@@ -56,7 +56,7 @@ Example configuration using lazy.nvim:
 ## Quickstart
 
 1. Install the plugin with lazy.nvim (see above).
-2. Configure `files` and `locales` to match your project layout.
+2. Configure `sources` and `locales` to match your project layout.
 3. Ensure Tree-sitter parsers for JavaScript / TypeScript are installed (e.g. via nvim-treesitter).
 4. Open a source file and use the provided commands / keymaps to show translations and inline virtual text.
 
@@ -128,9 +128,9 @@ So a project config will override anything you set in your Neovim config for tha
 
 Common options (all optional when a project file is present):
 - locales: array of language codes, first is considered default
-- files: array of file patterns or objects:
+- sources: array of file patterns or objects:
   * string pattern e.g. `src/locales/{locales}.json`
-  * table: `{ files = "pattern", prefix = "optional.prefix." }`
+  * table: `{ pattern = "pattern", prefix = "optional.prefix." }`
 - func_pattern: array of Lua patterns to locate i18n function usages in source files
 - show_translation / show_origin: control inline rendering behavior
 - filetypes / ft: restrict which filetypes are processed
@@ -143,6 +143,7 @@ Diagnostics
 If `diagnostic` is enabled (true or a table), the plugin emits diagnostics for missing translations at the position of the i18n key. When a table is provided, it is forwarded verbatim to `vim.diagnostic.set(namespace, bufnr, diagnostics, opts)` allowing you to tune presentation (underline, virtual_text, signs, severity_sort, etc). Setting `diagnostic = false` both suppresses generation and clears previously shown diagnostics for the buffer.
 
 Patterns support placeholders like `{locales}` and custom variables such as `{module}` which will be expanded by scanning the project tree.
+
 
 ### Project-level configuration (recommended)
 
@@ -157,9 +158,9 @@ Example `.i18nrc.json`:
 ```json
 {
   "locales": ["en_US", "zh_CN"],
-  "files": [
+  "sources": [
     "src/locales/{locales}.json",
-    { "files": "src/locales/lang/{locales}/{module}.ts", "prefix": "{module}." }
+    { "pattern": "src/locales/lang/{locales}/{module}.ts", "prefix": "{module}." }
   ]
 }
 ```
@@ -168,9 +169,9 @@ Example `.i18nrc.lua`:
 ```lua
 return {
   locales = { "en_US", "zh_CN" },
-  files = {
+  sources = {
     "src/locales/{locales}.json",
-    { files = "src/locales/lang/{locales}/{module}.ts", prefix = "{module}." },
+    { pattern = "src/locales/lang/{locales}/{module}.ts", prefix = "{module}." },
   },
   func_pattern = {
     "t%(['\"]([^'\"]+)['\"]",
@@ -185,7 +186,7 @@ Minimal Neovim config (global defaults) – can be empty or partial:
 ```lua
 require('i18n').setup({
   locales = { 'en', 'zh' },  -- acts as a fallback if project file absent
-  files = { 'src/locales/{locales}.json' },
+  sources = { 'src/locales/{locales}.json' },
 })
 ```
 
