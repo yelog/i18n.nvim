@@ -86,8 +86,8 @@ local function extract_i18n_keys(line, patterns)
           end
           table.insert(keys, {
             key = key,
-            start_pos = start_pos,   -- 整个匹配开始
-            end_pos = end_pos,       -- 整个匹配结束
+            start_pos = start_pos,         -- 整个匹配开始
+            end_pos = end_pos,             -- 整个匹配结束
             key_start_pos = key_start_pos, -- 仅 key（不含引号等）
             key_end_pos = key_end_pos,
           })
@@ -134,7 +134,7 @@ M.refresh_buffer = function(bufnr)
   local patterns = config.options.func_pattern
   local default_locale = M.get_current_locale()
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-  local diagnostics = diag_enabled and {} or nil
+  local diagnostics = {}
 
   -- 获取当前窗口和光标行
   local current_win = vim.api.nvim_get_current_win()
@@ -168,7 +168,8 @@ M.refresh_buffer = function(bufnr)
           lnum = line_num - 1,
           col = (key_info.key_start_pos or key_info.start_pos) - 1,
           end_col = key_info.key_end_pos or key_info.end_pos,
-          severity = vim.diagnostic and vim.diagnostic.severity.ERROR or 1,
+          severity = type(diag_opt) == "table" and diag_opt.severity or
+              (vim.diagnostic and vim.diagnostic.severity.ERROR) or 1,
           source = "i18n",
           message = string.format("缺少翻译: %s (%s)", key_info.key, default_locale or "default"),
         })
