@@ -142,10 +142,26 @@ function M.show_i18n_keys_with_fzf()
     table.insert(display_list, display_line)
   end
 
-  -- 构造固定的表头
+  -- 构造固定的表头（高亮当前默认语言）
+  local display_ok, display_mod = pcall(require, "i18n.display")
+  local current_locale = nil
+  if display_ok and type(display_mod.get_current_locale) == "function" then
+    current_locale = display_mod.get_current_locale()
+  end
+  if not current_locale then
+    current_locale = locales[1]
+  end
+
+  local HL_START = "\27[7m" -- 反转视频 standout，高亮当前默认语言
+  local HL_END = "\27[0m"
+
   local header_row = { pad_right("Key", col_widths[1]) }
   for i, locale in ipairs(locales) do
-    table.insert(header_row, pad_right(locale, col_widths[i + 1]))
+    local cell = pad_right(locale, col_widths[i + 1])
+    if locale == current_locale then
+      cell = HL_START .. cell .. HL_END
+    end
+    table.insert(header_row, cell)
   end
   local header = table.concat(header_row, " │ ")
 
