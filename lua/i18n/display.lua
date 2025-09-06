@@ -179,7 +179,7 @@ M.refresh_buffer = function(bufnr)
     vim.diagnostic.set(diag_ns, bufnr, diagnostics, {
       underline = true,
       virtual_text = {
-        prefix = " ",
+        prefix = "󰊿",
       },
       signs = true,
       severity_sort = true,
