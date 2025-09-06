@@ -75,10 +75,21 @@ local function extract_i18n_keys(line, patterns)
           end
         end
         if not overlap then
+          -- 进一步精确出只包含引号内部 key 的起止位置，便于诊断高亮更精准
+          local match_str = line:sub(start_pos, end_pos)
+          local rel_s, rel_e = match_str:find(key, 1, true)
+          local key_start_pos = start_pos
+          local key_end_pos = end_pos
+          if rel_s and rel_e then
+            key_start_pos = start_pos + rel_s - 1
+            key_end_pos = start_pos + rel_e - 1
+          end
           table.insert(keys, {
             key = key,
-            start_pos = start_pos,
-            end_pos = end_pos
+            start_pos = start_pos,   -- 整个匹配开始
+            end_pos = end_pos,       -- 整个匹配结束
+            key_start_pos = key_start_pos, -- 仅 key（不含引号等）
+            key_end_pos = key_end_pos,
           })
           for i = start_pos, end_pos do
             occupied[i] = true
@@ -155,8 +166,8 @@ M.refresh_buffer = function(bufnr)
       if diag_enabled and not translation then
         table.insert(diagnostics, {
           lnum = line_num - 1,
-          col = key_info.start_pos - 1,
-          end_col = key_info.end_pos,
+          col = (key_info.key_start_pos or key_info.start_pos) - 1,
+          end_col = key_info.key_end_pos or key_info.end_pos,
           severity = vim.diagnostic and vim.diagnostic.severity.ERROR or 1,
           source = "i18n",
           message = string.format("缺少翻译: %s (%s)", key_info.key, default_locale or "default"),
