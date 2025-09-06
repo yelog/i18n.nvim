@@ -2,52 +2,92 @@ local M = {}
 local config = require('i18n.config')
 local utils = require('i18n.utils')
 
+-- 记录每个文件的前缀信息与 key 元数据
+-- file_prefixes[locale][absolute_file_path] = "system."
+M.file_prefixes = {}
+-- meta[locale][full_key] = { file = "...", line = number }
+M.meta = {}
+
 -- 解析 JSON 文件
 local function parse_json(content)
-  local ok, result = pcall(vim.json.decode, content)
-  if ok then
-    return result
+  local ok, decoded = pcall(vim.json.decode, content)
+  if not ok or type(decoded) ~= "table" then
+    return nil
   end
-  return nil
+
+  local lines = {}
+  for l in content:gmatch("[^\r\n]+") do
+    table.insert(lines, l)
+  end
+
+  local function guess_line(seg)
+    for idx, l in ipairs(lines) do
+      -- 匹配 "seg": 或 'seg':
+      if l:match('[\'"]' .. vim.pesc(seg) .. '[\'"]%s*:') then
+        return idx
+      end
+    end
+    return 1
+  end
+
+  local flat = {}
+  local line_map = {}
+
+  local function traverse(tbl, prefix)
+    for k, v in pairs(tbl) do
+      local full_key = prefix == "" and k or (prefix .. "." .. k)
+      if type(v) == "table" then
+        traverse(v, full_key)
+      else
+        flat[full_key] = v
+        line_map[full_key] = guess_line(k)
+      end
+    end
+  end
+
+  traverse(decoded, "")
+  return flat, line_map
 end
 
 -- 解析 YAML 文件
 local function parse_yaml(content)
   -- 简单的 YAML 解析，实际使用可能需要更复杂的解析器
   local result = {}
+  local line_map = {}
+  local idx = 0
   for line in content:gmatch("[^\r\n]+") do
+    idx = idx + 1
     local key, value = line:match("^%s*([%w%.]+):%s*(.+)%s*$")
     if key and value then
-      -- 移除引号
       value = value:gsub("^['\"]", ""):gsub("['\"]$", "")
       result[key] = value
+      line_map[key] = idx
     end
   end
-  return result
+  return result, line_map
 end
 
 -- 解析 .properties 文件 (key=value / key:value，忽略 # 或 ! 开头注释，简单实现)
 local function parse_properties(content)
   local result = {}
+  local line_map = {}
+  local idx = 0
   for line in content:gmatch("[^\r\n]+") do
-    -- 去除前后空白
+    idx = idx + 1
     local trimmed = line:match("^%s*(.-)%s*$")
-    -- 跳过空行与注释
     if trimmed ~= "" and not trimmed:match("^#") and not trimmed:match("^!") then
-      -- 支持 key = value 或 key: value 或 key value（仅第一次分隔符）
       local key, value = trimmed:match("^([^:=%s]+)%s*[:=]%s*(.*)$")
       if not key then
-        -- 尝试空白分隔
         key, value = trimmed:match("^([^%s]+)%s+(.*)$")
       end
       if key and value then
-        -- 去掉行尾续行反斜杠（不做跨行合并，简单处理）
         value = value:gsub("\\$", "")
         result[key] = value
+        line_map[key] = idx
       end
     end
   end
-  return result
+  return result, line_map
 end
 
 -- 解析 JS/TS 文件（使用 treesitter 支持递归任意深度）
@@ -74,6 +114,7 @@ local function parse_js(content)
 
   local root = tree:root()
   local result = {}
+  local line_map = {}
 
   -- 查找 export default/module.exports 的对象节点
   local function find_export_object(node)
@@ -134,7 +175,12 @@ local function parse_js(content)
             end
           end
 
-          result[prefix .. key] = value
+          local full_key = prefix .. key
+          result[full_key] = value
+          -- key_node:start() 返回 0-based 行
+          if key_node and key_node:start() then
+            line_map[full_key] = key_node:start() + 1
+          end
         end
       end
     end
@@ -145,7 +191,7 @@ local function parse_js(content)
     traverse_object(obj_node, "")
   end
 
-  return result
+  return result, line_map
 end
 
 -- 根据文件扩展名解析文件
@@ -325,20 +371,36 @@ local function load_file_config(file_config, locale)
       local actual_prefix = fill_prefix(actual_file, filepath, prefix)
       -- vim.notify("actual_file: " .. actual_file .. "\nfilepath: " .. filepath .. "\nactual_prefix: " .. actual_prefix)
       if utils.file_exists(actual_file) then
-        local data = parse_file(actual_file)
+        local data, line_map = parse_file(actual_file)
         if data then
           M.translations[locale] = M.translations[locale] or {}
-          deep_merge(M.translations[locale], data, actual_prefix)
+          M.meta[locale] = M.meta[locale] or {}
+          M.file_prefixes[locale] = M.file_prefixes[locale] or {}
+          M.file_prefixes[locale][actual_file] = actual_prefix
+          for k, v in pairs(data) do
+            local final_key = actual_prefix .. k
+            M.translations[locale][final_key] = v
+            local line = line_map and line_map[k] or 1
+            M.meta[locale][final_key] = { file = actual_file, line = line }
+          end
         end
       end
     end)
   else
     -- 直接加载文件
     if utils.file_exists(filepath) then
-      local data = parse_file(filepath)
+      local data, line_map = parse_file(filepath)
       if data then
         M.translations[locale] = M.translations[locale] or {}
-        deep_merge(M.translations[locale], data, prefix)
+        M.meta[locale] = M.meta[locale] or {}
+        M.file_prefixes[locale] = M.file_prefixes[locale] or {}
+        M.file_prefixes[locale][filepath] = prefix
+        for k, v in pairs(data) do
+          local final_key = prefix .. k
+          M.translations[locale][final_key] = v
+          local line = line_map and line_map[k] or 1
+            M.meta[locale][final_key] = { file = filepath, line = line }
+        end
       end
     end
   end
@@ -398,6 +460,17 @@ M.get_all_translations = function(key)
     end
   end
   return result
+end
+
+-- 获取某个 key 在默认或指定语言下的位置信息 { file=..., line=... }
+M.get_key_location = function(key, locale)
+  locale = locale or (config.options.locales and config.options.locales[1])
+  if not locale then return nil end
+  local meta_locale = M.meta[locale]
+  if meta_locale and meta_locale[key] then
+    return meta_locale[key]
+  end
+  return nil
 end
 
 M.get_all_keys = function()
