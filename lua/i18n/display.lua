@@ -4,6 +4,7 @@ local parser = require('i18n.parser')
 
 -- 命名空间
 local ns = vim.api.nvim_create_namespace('i18n_display')
+local diag_ns = vim.api.nvim_create_namespace('i18n_display_diag')
 
 -- 当前显示语言索引（基于 config.locales）
 M._current_locale_index = 1
@@ -111,10 +112,15 @@ M.refresh_buffer = function(bufnr)
 
   -- 清除旧的虚拟文本
   vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
+  -- 重置诊断
+  if vim.diagnostic then
+    vim.diagnostic.reset(diag_ns, bufnr)
+  end
 
   local patterns = config.options.func_pattern
   local default_locale = M.get_current_locale()
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local diagnostics = {}
 
   -- 获取当前窗口和光标行
   local current_win = vim.api.nvim_get_current_win()
@@ -134,15 +140,24 @@ M.refresh_buffer = function(bufnr)
     local keys = extract_i18n_keys(line, patterns)
     -- vim.notify("keys: " .. vim.inspect(keys), vim.log.levels.DEBUG)
     for _, key_info in ipairs(keys) do
-      local translation = nil
-      if config.options.show_translation then
-        translation = parser.get_translation(key_info.key, default_locale)
-        if translation then
-          -- 如果当前行为光标所在行，则不显示虚拟文本
-          if not cursor_line or line_num ~= cursor_line then
-            set_virtual_text(bufnr, line_num - 1, key_info.end_pos, translation)
-          end
+      local translation = parser.get_translation(key_info.key, default_locale)
+
+      if translation and config.options.show_translation then
+        -- 如果当前行为光标所在行，则不显示虚拟文本
+        if not cursor_line or line_num ~= cursor_line then
+          set_virtual_text(bufnr, line_num - 1, key_info.end_pos, translation)
         end
+      end
+
+      if not translation then
+        table.insert(diagnostics, {
+          lnum = line_num - 1,
+          col = key_info.start_pos - 1,
+          end_col = key_info.end_pos,
+          severity = vim.diagnostic and vim.diagnostic.severity.ERROR or 1,
+          source = "i18n",
+          message = string.format("缺少翻译: %s (%s)", key_info.key, default_locale or "default"),
+        })
       end
 
       -- 只有找到译文并成功设置 virt_text 后，show_origin = false 才 conceal
@@ -159,6 +174,16 @@ M.refresh_buffer = function(bufnr)
         end
       end
     end
+  end
+  if vim.diagnostic and #diagnostics > 0 then
+    vim.diagnostic.set(diag_ns, bufnr, diagnostics, {
+      underline = true,
+      virtual_text = {
+        prefix = " ",
+      },
+      signs = true,
+      severity_sort = true,
+    })
   end
 end
 
