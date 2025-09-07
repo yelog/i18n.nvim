@@ -24,7 +24,9 @@ end
 function M.try_definition()
   local key = display.get_key_under_cursor and display.get_key_under_cursor()
   if not key then return false end
-  local loc = parser.get_key_location(key)
+  -- 使用当前显示语言（由 I18nNextLocale 切换）而不是固定第一个 locales
+  local current_locale = display.get_current_locale and display.get_current_locale()
+  local loc = parser.get_key_location(key, current_locale)
   if not loc then return false end
   return open_location(loc, key)
 end
