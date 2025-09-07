@@ -169,7 +169,7 @@ M.refresh_buffer = function(bufnr)
           col = (key_info.key_start_pos or key_info.start_pos) - 1,
           end_col = key_info.key_end_pos or key_info.end_pos,
           severity = type(diag_opt) == "table" and diag_opt.severity or
-              (vim.diagnostic and vim.diagnostic.severity.ERROR) or 1,
+              (vim.diagnostic and vim.diagnostic.severity.WARN) or 1,
           source = "i18n",
           message = string.format("缺少翻译: %s (%s)", key_info.key, default_locale or "default"),
         })
