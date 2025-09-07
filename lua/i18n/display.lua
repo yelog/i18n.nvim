@@ -208,23 +208,23 @@ M.refresh_buffer = function(bufnr)
   end
 end
 
--- 显示弹窗
-M.show_popup = function()
+-- 返回光标下的 i18n key（没有则返回 nil）
+function M.get_key_under_cursor()
   local cursor = vim.api.nvim_win_get_cursor(0)
   local line = vim.api.nvim_get_current_line()
   local patterns = config.options.func_pattern
-
-  -- 提取当前行的国际化键
   local keys = extract_i18n_keys(line, patterns)
-
-  -- 找到光标所在的键
-  local current_key = nil
   for _, key_info in ipairs(keys) do
     if cursor[2] >= key_info.start_pos - 1 and cursor[2] <= key_info.end_pos then
-      current_key = key_info.key
-      break
+      return key_info.key
     end
   end
+  return nil
+end
+
+-- 显示弹窗
+M.show_popup = function()
+  local current_key = M.get_key_under_cursor()
 
   if not current_key then
     vim.notify("No i18n key found at cursor position", vim.log.levels.WARN)

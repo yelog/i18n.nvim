@@ -144,6 +144,35 @@ If `diagnostic` is enabled (true or a table), the plugin emits diagnostics for m
 
 Patterns support placeholders like `{locales}` and custom variables such as `{module}` which will be expanded by scanning the project tree.
 
+Navigation
+Jump from an i18n key usage to its definition (default locale file + line) using an explicit helper function:
+Helper: require('i18n.navigation').try_definition() -> boolean
+Returns true if it jumped, false if no i18n key / location found (so you can fallback to LSP).
+
+Example keymap that prefers i18n, then falls back to LSP definition:
+```lua
+vim.keymap.set('n', 'gd', function()
+  if require('i18n.navigation').try_definition() then
+    return
+  end
+  vim.lsp.buf.definition()
+end, { desc = 'i18n or LSP definition' })
+```
+
+Separate key (only i18n):
+```lua
+vim.keymap.set('n', 'gK', function()
+  require('i18n.navigation').try_definition()
+end, { desc = 'Jump to i18n definition' })
+```
+
+Configuration option:
+navigation = {
+  open_cmd = "edit", -- or 'vsplit' | 'split' | 'tabedit'
+}
+
+Line numbers are best-effort for JSON/YAML/.properties (heuristic matching); JS/TS uses Tree-sitter for higher accuracy.
+
 
 ### Project-level configuration (recommended)
 

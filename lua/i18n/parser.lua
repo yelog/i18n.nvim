@@ -381,7 +381,8 @@ local function load_file_config(file_config, locale)
             local final_key = actual_prefix .. k
             M.translations[locale][final_key] = v
             local line = line_map and line_map[k] or 1
-            M.meta[locale][final_key] = { file = actual_file, line = line }
+            local abs_path = vim.loop.fs_realpath(actual_file) or vim.fn.fnamemodify(actual_file, ":p")
+            M.meta[locale][final_key] = { file = abs_path, line = line }
           end
         end
       end
@@ -399,7 +400,8 @@ local function load_file_config(file_config, locale)
           local final_key = prefix .. k
           M.translations[locale][final_key] = v
           local line = line_map and line_map[k] or 1
-            M.meta[locale][final_key] = { file = filepath, line = line }
+            local abs_path = vim.loop.fs_realpath(filepath) or vim.fn.fnamemodify(filepath, ":p")
+            M.meta[locale][final_key] = { file = abs_path, line = line }
         end
       end
     end

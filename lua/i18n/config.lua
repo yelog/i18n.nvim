@@ -11,7 +11,8 @@ M.defaults = {
   locales = { "en", "zh" },
   sources = {
     "src/locales/{locales}.json",
-  }
+  },
+  navigation = {}
 }
 
 -- 记录项目级配置
