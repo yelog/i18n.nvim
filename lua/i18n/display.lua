@@ -120,6 +120,15 @@ local function set_virtual_text(bufnr, line_num, col, text)
   })
 end
 
+-- 在翻译文件中行尾显示（默认语言）翻译
+local function set_eol_virtual_text(bufnr, line_num, text)
+  if not text or text == "" then return end
+  vim.api.nvim_buf_set_extmark(bufnr, ns, line_num, 0, {
+    virt_text = { { " ← " .. text, "Comment" } },
+    virt_text_pos = "eol",
+  })
+end
+
 -- 刷新缓冲区显示
 M.refresh_buffer = function(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
@@ -139,6 +148,33 @@ M.refresh_buffer = function(bufnr)
   local default_locale = M.get_current_locale()
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local diagnostics = {}
+
+  -- 如果当前缓冲区是翻译文件（根据 parser.meta/default_locale 判断），
+  -- 则为每个 key 的行尾添加该默认语言的翻译，随后直接返回（不执行普通代码文件内联流程）
+  local buf_path = vim.api.nvim_buf_get_name(bufnr)
+  local abs_path = vim.loop.fs_realpath(buf_path) or buf_path
+  local parser = require('i18n.parser')
+  local is_translation_file = false
+  local line_key_map = {}
+
+  if default_locale and parser.meta and parser.meta[default_locale] then
+    for full_key, meta in pairs(parser.meta[default_locale]) do
+      if meta.file == abs_path then
+        is_translation_file = true
+        line_key_map[meta.line] = full_key
+      end
+    end
+  end
+
+  if is_translation_file then
+    for line_num, full_key in pairs(line_key_map) do
+      local value = parser.get_translation(full_key, default_locale)
+      if value then
+        set_eol_virtual_text(bufnr, line_num - 1, value)
+      end
+    end
+    return
+  end
 
   -- 获取当前窗口和光标行
   local current_win = vim.api.nvim_get_current_win()
@@ -246,7 +282,7 @@ M.show_popup = function()
   -- 构建显示内容（包含所有已配置语言，缺失翻译以占位符显示并标红）
   local lines = { "I18n: " .. current_key, "" }
   local missing_placeholder = "<Missing translation>"
-  local missing_positions = {}  -- { { line=number(0-based), col_start=number, col_end=number }, ... }
+  local missing_positions = {} -- { { line=number(0-based), col_start=number, col_end=number }, ... }
 
   local locale_list = (config.options or {}).locales or {}
   for _, locale in ipairs(locale_list) do
