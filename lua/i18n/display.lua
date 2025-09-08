@@ -5,6 +5,7 @@ local parser = require('i18n.parser')
 -- 命名空间
 local ns = vim.api.nvim_create_namespace('i18n_display')
 local diag_ns = vim.api.nvim_create_namespace('i18n_display_diag')
+local keypos_ns = vim.api.nvim_create_namespace('i18n_keypos')
 
 -- 最近一次弹窗窗口与缓冲区
 M._popup_win = nil
@@ -166,13 +167,17 @@ M.refresh_buffer = function(bufnr)
     return
   end
 
-  -- 清除旧的虚拟文本
-  vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
+  -- 对代码文件立即清除虚拟文本；翻译文件延后到成功解析后再清除
+  -- 这样在翻译文件内尚未完成输入（JSON 不合法 / 临时语法错误）时不至于出现错行或闪烁
+  local cleared = false
+  if not file_locale then
+    vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
+    cleared = true
+  end
   -- 诊断配置处理
   local diag_opt = (config.options or {}).diagnostic
   local diag_enabled = diag_opt ~= false
   if vim.diagnostic then
-    -- 如果禁用或需要刷新都先清空
     vim.diagnostic.reset(diag_ns, bufnr)
   end
 
@@ -181,10 +186,64 @@ M.refresh_buffer = function(bufnr)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local diagnostics = {}
 
-  -- 若是翻译文件，仅当其语言 == 当前默认语言时才在行尾展示翻译
+  -- 若是翻译文件：增量解析（未保存插入/删除行后行号立即同步），然后行尾展示当前显示语言翻译
   if file_locale then
-    -- 无论当前文件语言是否为当前显示语言，都显示“当前显示语言(default_locale)”的翻译
+    local changedtick = vim.api.nvim_buf_get_changedtick(bufnr)
+    local last_tick = nil
+    local ok_last = pcall(function()
+      last_tick = vim.api.nvim_buf_get_var(bufnr, 'i18n_last_parsed_tick')
+    end)
+    if not ok_last then last_tick = nil end
+    local parse_success = true
+    if last_tick ~= changedtick then
+      local ok_reload, parser_mod = pcall(require, 'i18n.parser')
+      if ok_reload and parser_mod.reload_translation_buffer then
+        local ok_ret, ret = pcall(parser_mod.reload_translation_buffer, abs_path, file_locale, bufnr)
+        if ok_ret then
+          parse_success = ret ~= false
+        else
+          parse_success = false
+        end
+      end
+      pcall(vim.api.nvim_buf_set_var, bufnr, 'i18n_last_parsed_tick', changedtick)
+    end
+
+    -- 如果解析失败（例如 JSON 尚未完成输入），清空旧的行尾翻译以避免错位，然后返回
+    if not parse_success then
+      if not cleared then
+        vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
+        cleared = true
+      end
+      return
+    end
+
     local meta_tbl = parser.meta[file_locale] or {}
+
+    -- 先基于已存在的 key 位置 extmark（若有）更新行号，确保插入 / 删除行后不漂移
+    for full_key, meta in pairs(meta_tbl) do
+      if meta.file == abs_path then
+        if meta.mark_id then
+          local pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, keypos_ns, meta.mark_id, {})
+          if pos and pos[1] then
+            meta.line = pos[1] + 1
+            meta.col = (pos[2] or 0) + 1
+          end
+        else
+          -- 为没有 mark 的条目建立位置跟踪 extmark
+          local lnum = (meta.line or 1) - 1
+          local col = (meta.col or 1) - 1
+          local id = vim.api.nvim_buf_set_extmark(bufnr, keypos_ns, lnum, col, {})
+          meta.mark_id = id
+        end
+      end
+    end
+
+    -- 成功解析后再清除旧的虚拟文本（仅清除展示 namespace，不动 keypos_ns）
+    if not cleared then
+      vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
+      cleared = true
+    end
+
     for full_key, meta in pairs(meta_tbl) do
       if meta.file == abs_path then
         local value = parser.get_translation(full_key, default_locale)

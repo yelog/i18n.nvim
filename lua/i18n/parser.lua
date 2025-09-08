@@ -600,4 +600,83 @@ M.get_all_keys = function()
   return M.all_keys
 end
 
+-- 增量重新解析当前翻译缓冲区（未保存内容也能即时刷新行号）
+-- abs_path: 绝对路径
+-- locale: 语言
+-- bufnr: buffer 编号
+function M.reload_translation_buffer(abs_path, locale, bufnr)
+  if not abs_path or not locale or not bufnr then return false end
+  if not M.file_prefixes[locale] or not M.file_prefixes[locale][abs_path] then
+    return false
+  end
+
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local content = table.concat(lines, "\n")
+  local ext = abs_path:match("%.([%w_]+)$")
+  if not ext then return false end
+
+  local data, line_map, col_map
+  if ext == "json" then
+    data, line_map, col_map = parse_json(content)
+  elseif ext == "yaml" or ext == "yml" then
+    data, line_map, col_map = parse_yaml(content)
+  elseif ext == "properties" or ext == "prop" then
+    data, line_map = parse_properties(content)
+    col_map = {}
+  elseif ext == "js" or ext == "ts" then
+    data, line_map, col_map = parse_js(content)
+  else
+    return false
+  end
+  -- 若当前内容暂时无效（如 JSON 未完成输入），返回 false，调用方据此跳过渲染避免错位
+  if not data then return false end
+
+  local prefix = M.file_prefixes[locale][abs_path] or ""
+
+  M.translations[locale] = M.translations[locale] or {}
+  M.meta[locale] = M.meta[locale] or {}
+
+  -- 记录旧 meta（保留 mark_id 以避免行内插入时闪烁 / 丢失跟踪）
+  local old_file_meta = {}
+  for key, meta in pairs(M.meta[locale]) do
+    if meta.file == abs_path then
+      old_file_meta[key] = meta
+    end
+  end
+  -- 清除旧的该文件条目
+  for key, _ in pairs(old_file_meta) do
+    M.translations[locale][key] = nil
+    M.meta[locale][key] = nil
+  end
+
+  -- 写入新数据（复用旧 mark_id）
+  for k, v in pairs(data) do
+    local final_key = prefix .. k
+    M.translations[locale][final_key] = v
+    local line = line_map and line_map[k] or 1
+    local col = (col_map and col_map[k]) or 1
+    local old = old_file_meta[final_key]
+    if old and old.mark_id then
+      M.meta[locale][final_key] = { file = abs_path, line = line, col = col, mark_id = old.mark_id }
+    else
+      M.meta[locale][final_key] = { file = abs_path, line = line, col = col }
+    end
+  end
+
+  -- 更新 all_keys（保持简单，重新聚合）
+  local set = {}
+  for _, translations in pairs(M.translations) do
+    for k, _ in pairs(translations) do
+      set[k] = true
+    end
+  end
+  M.all_keys = {}
+  for k, _ in pairs(set) do
+    table.insert(M.all_keys, k)
+  end
+  table.sort(M.all_keys)
+
+  return true
+end
+
 return M
