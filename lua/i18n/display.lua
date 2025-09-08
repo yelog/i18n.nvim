@@ -243,10 +243,27 @@ M.show_popup = function()
     return false
   end
 
-  -- 构建显示内容
+  -- 构建显示内容（包含所有已配置语言，缺失翻译以占位符显示并标红）
   local lines = { "I18n: " .. current_key, "" }
-  for locale, text in pairs(translations) do
-    table.insert(lines, string.format("%s: %s", locale, text))
+  local missing_placeholder = "<Missing translation>"
+  local missing_positions = {}  -- { { line=number(0-based), col_start=number, col_end=number }, ... }
+
+  local locale_list = (config.options or {}).locales or {}
+  for _, locale in ipairs(locale_list) do
+    local text = translations[locale]
+    if text == nil then
+      local line_str = string.format("%s: %s", locale, missing_placeholder)
+      table.insert(lines, line_str)
+      local line_idx0 = #lines - 1 -- 0-based
+      local cs = line_str:find(missing_placeholder, 1, true) or 0
+      if cs > 0 then
+        cs = cs - 1 -- 0-based
+        local ce = cs + #missing_placeholder
+        table.insert(missing_positions, { line = line_idx0, col_start = cs, col_end = ce })
+      end
+    else
+      table.insert(lines, string.format("%s: %s", locale, text))
+    end
   end
 
   -- 创建浮动窗口（先关闭已有的）
@@ -281,6 +298,12 @@ M.show_popup = function()
 
   -- 设置高亮
   vim.api.nvim_buf_add_highlight(buf, -1, 'Title', 0, 0, -1)
+  -- 缺失翻译占位符标红
+  if missing_positions then
+    for _, mp in ipairs(missing_positions) do
+      pcall(vim.api.nvim_buf_add_highlight, buf, -1, 'Error', mp.line, mp.col_start, mp.col_end)
+    end
+  end
 
   -- 自动关闭（定时）
   vim.defer_fn(function()
