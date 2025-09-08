@@ -274,8 +274,23 @@ function M.get_key_under_cursor()
   local line = vim.api.nvim_get_current_line()
   local patterns = config.options.func_pattern
   local keys = extract_i18n_keys(line, patterns)
+  local cur_col1 = cursor[2] + 1 -- 转为 1-based 列
   for _, key_info in ipairs(keys) do
-    if cursor[2] >= key_info.start_pos - 1 and cursor[2] <= key_info.end_pos then
+    -- 仅允许在 key 及其包裹引号范围内触发（排除函数名 t( 及右括号位置）
+    local ks = key_info.key_start_pos or key_info.start_pos
+    local ke = key_info.key_end_pos or key_info.end_pos
+    local allowed_start = ks
+    local allowed_end = ke
+    -- 向外扩展一位若存在引号
+    local prev_char = (ks > 1) and line:sub(ks - 1, ks - 1) or nil
+    if prev_char == "'" or prev_char == '"' then
+      allowed_start = ks - 1
+    end
+    local next_char = line:sub(ke + 1, ke + 1)
+    if next_char == "'" or next_char == '"' then
+      allowed_end = ke + 1
+    end
+    if cur_col1 >= allowed_start and cur_col1 <= allowed_end then
       return key_info.key
     end
   end
