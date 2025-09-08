@@ -35,7 +35,8 @@ Example configuration using lazy.nvim:
   },
   config = function()
     require('i18n').setup({
-      -- List of languages to parse, the first is considered the default language
+      -- Locales to parse; first is the default locale
+      -- Use I18nNextLocale command to switch the default locale in real time
       locales = { 'en', 'zh' },
       -- sources can be string or table { pattern = "...", prefix = "..." }
       sources = {
@@ -45,8 +46,10 @@ Example configuration using lazy.nvim:
       },
       -- function patterns used to detect i18n keys in code
       func_pattern = {
-        "t%(['\"]([^'\"]+)['\"]", -- t('key') or t("key")
-        "%$t%(['\"]([^'\"]+)['\"]", -- $t('key') or $t("key")
+        -- t('key') or t("key")
+        "t%(['\"]([^'\"]+)['\"]",
+        -- $t('key') or $t("key")
+        "%$t%(['\"]([^'\"]+)['\"]",
       },
     })
   end
