@@ -1,4 +1,4 @@
-# yelog/i18n.nvim
+# 🌐 i18n.nvim
 
 A lightweight Neovim plugin for displaying and managing project i18n (translation) files directly in the editor.  
 Designed for front-end projects (JSON, YAML, JS/TS translation modules) and integrates with Tree-sitter to parse JS/TS translation objects.
@@ -6,21 +6,21 @@ Designed for front-end projects (JSON, YAML, JS/TS translation modules) and inte
 > [!WARNING]
 > This plugin is currently in an early stage of rapid validation and development. Configuration and API may change significantly at any time. Please use with caution and keep an eye on the changelog.
 
-## Key features
+## ✨ Key Features
 
-- Parse translation files in JSON, YAML, .properties and JS/TS (Tree-sitter based) formats.
-- Flatten nested translation objects into dot-separated keys (e.g. `system.title`).
-- Support static project configuration with language lists and flexible file patterns.
-- Inline virtual text display and popup helpers to preview translations (via Neovim API).
-- Recursive variable expansion in file patterns (e.g. `{module}`, `{locales}`).
-- Fast, zero-dependency core (relies on Neovim builtin APIs and Tree-sitter).
+- 📄 Parse translation files (JSON, YAML, .properties, JS/TS via Tree-sitter).
+- 🧩 Flatten nested translation objects into dot-separated keys (e.g. `system.title`).
+- 🗂 Flexible project configuration (locales & file patterns).
+- 👁 Inline virtual text & popup helpers to preview translations.
+- 🔁 Recursive placeholder expansion in file patterns (e.g. `{module}`, `{locales}`).
+- ⚡ Fast, zero-dependency core (Neovim built-ins + Tree-sitter).
 
-## Requirements
+## 📦 Requirements
 
 - Neovim 0.8+ (Tree-sitter integration required)
 - A Tree-sitter parser for JavaScript/TypeScript installed for files parsing
 
-## Installation (lazy.nvim)
+## 🛠 Installation (lazy.nvim)
 
 Example configuration using lazy.nvim:
 
@@ -56,14 +56,14 @@ Example configuration using lazy.nvim:
 }
 ```
 
-## Quickstart
+## 🚀 Quickstart
 
 1. Install the plugin with lazy.nvim (see above).
 2. Configure `sources` and `locales` to match your project layout.
 3. Ensure Tree-sitter parsers for JavaScript / TypeScript are installed (e.g. via nvim-treesitter).
 4. Open a source file and use the provided commands / keymaps to show translations and inline virtual text.
 
-## Keymaps & Commands
+## 🎛 Keymaps & Commands
 
 Recommended keymaps (example using lazy-loaded setup):
 ```lua
@@ -90,14 +90,14 @@ vim.keymap.set("n", "<leader>io", "<cmd>I18nToggleOrigin<CR>", { desc = "Toggle 
 ```
 
 Commands:
-- :**I18nNextLocale**
+- 🔄 :**I18nNextLocale**
   Cycles the active display language used for inline virtual text. It moves to the next entry in `locales` (wrapping back to the first). Inline overlays refresh automatically.
-- :**I18nToggleOrigin**
+- 👁 :**I18nToggleOrigin**
   Toggles between showing the translated text (current language) and the raw/original i18n key in inline virtual text. When disabled you can easily copy / inspect the key names; toggling again restores the translation overlay.
-- :**I18nToggleLocaleFileEol**
+- 📝 :**I18nToggleLocaleFileEol**
   Toggles showing end-of-line translations in locale source files (per i18n key line). When enabled, each key line in a locale translation file shows the current display locale’s translation as EOL virtual text; disabling hides these overlays (useful for focused editing or cleaner diffs).
 
-## blink.cmp Integration
+## 🔌 blink.cmp Integration
 
 The plugin provides a blink.cmp source (`i18n.integration.blink_source`) that:
 - Offers completion items where the label and inserted text are the i18n key.
@@ -129,7 +129,7 @@ require('blink.cmp').setup({
 > Since `blink.cmp` uses a dot (`.`) as a separator for queries, and our i18n keys are also separated by dots, it's recommended to avoid entering dots when searching for keys. For example, instead of typing `common.time.second`, you can type `commonseco` to fuzzy match the i18n key, then press `<c-y>` (or whatever shortcut you have set) to complete the selection.
 
 
-## Configuration
+## ⚙️ Configuration
 
 The plugin exposes `require('i18n').setup(opts)` where `opts` is merged with defaults.
 
@@ -202,7 +202,7 @@ end, { desc = "i18n popup or signature help" })
 ```
 
 
-### Project-level configuration (recommended)
+### 🏗 Project-level Configuration (recommended)
 
 You can place a project-specific config file at the project root. The plugin will auto-detect (in order) the first existing file:
 - `.i18nrc.json`
@@ -259,13 +259,13 @@ require('i18n').setup(require('i18n').options)
 - You can keep a very small user-level setup and let each project define its own structure.
 - If you frequently switch branches that add/remove locale files, you may want to trigger a manual reload (e.g. a custom command that re-runs `setup()`).
 
-## How it works (brief)
+## 🧠 How It Works
 
 - JSON/YAML/.properties files are read and decoded (.properties uses simple key=value parsing; YAML uses a simplified parser covering only common scenarios).
 - JS/TS modules are parsed with Tree-sitter to find exported objects (supports `export default`, `module.exports`, direct object literals, and nested objects). Parsed keys and string values are normalized (quotes removed) and flattened.
 - Translations are merged into an internal table keyed by language and dot-separated keys.
 
-## Contributing
+## 🤝 Contributing
 
 Contributions, bug reports and PRs are welcome. Please:
 
@@ -273,11 +273,11 @@ Contributions, bug reports and PRs are welcome. Please:
 2. Submit PRs with unit-tested or manually verified changes.
 3. Keep coding style consistent with the repository.
 
-## Troubleshooting
+## 🩺 Troubleshooting
 
 - If JS/TS parsing fails, ensure Tree-sitter parsers are installed and up-to-date.
 - If some values still contain quotes, ensure the source file uses plain string literals; complex template literals or expressions may need custom handling.
 
-## License
+## 📄 License
 
-Apacche-2.0 license. See [LICENSE](LICENSE) for details.
+Apache-2.0 License. See [LICENSE](LICENSE) for details.
