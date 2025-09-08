@@ -150,11 +150,11 @@ local function parse_properties(content)
 
         -- 常见转义序列
         value = value
-          :gsub("\\n", "\n")
-          :gsub("\\t", "\t")
-          :gsub("\\r", "\r")
-          :gsub("\\f", "\f")
-          :gsub("\\\\", "\\")
+            :gsub("\\n", "\n")
+            :gsub("\\t", "\t")
+            :gsub("\\r", "\r")
+            :gsub("\\f", "\f")
+            :gsub("\\\\", "\\")
 
         result[key] = value
         line_map[key] = idx
@@ -479,8 +479,8 @@ local function load_file_config(file_config, locale)
           local final_key = prefix .. k
           M.translations[locale][final_key] = v
           local line = line_map and line_map[k] or 1
-            local abs_path = vim.loop.fs_realpath(filepath) or vim.fn.fnamemodify(filepath, ":p")
-            M.meta[locale][final_key] = { file = abs_path, line = line, col = (col_map and col_map[k]) or 1 }
+          local abs_path = vim.loop.fs_realpath(filepath) or vim.fn.fnamemodify(filepath, ":p")
+          M.meta[locale][final_key] = { file = abs_path, line = line, col = (col_map and col_map[k]) or 1 }
         end
       end
     end
@@ -494,17 +494,17 @@ M.load_translations = function()
 
   for _, locale in ipairs(options.locales) do
     local sources = options.sources or {}
-    for _, file_config in ipairs(sources) do
+    for _, source in ipairs(sources) do
       -- 判断 {module} 后面是文件后缀还是 /
-      local pattern = type(file_config) == "string" and file_config
-          or file_config.pattern
+      local pattern = type(source) == "string" and source
+          or source.pattern
       local filepath = pattern:gsub("{locales}", locale)
       local ext = nil
       if filepath:match("{module}") then
         ext = filepath:match("{module}%.([%w_]+)")
         if ext then ext = "." .. ext end
       end
-      load_file_config(file_config, locale)
+      load_file_config(source, locale)
     end
   end
 

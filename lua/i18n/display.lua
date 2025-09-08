@@ -139,7 +139,6 @@ M.refresh_buffer = function(bufnr)
   -- 提前判定是否为翻译文件：即属于任一 locale 的已解析文件
   local buf_path = vim.api.nvim_buf_get_name(bufnr)
   local abs_path = vim.loop.fs_realpath(buf_path) or buf_path
-  local parser = require('i18n.parser')
 
   local file_locale = nil
   for _, loc in ipairs((config.options or {}).locales or {}) do
