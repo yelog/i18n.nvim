@@ -15,7 +15,7 @@ local function open_location(loc, key)
   else
     vim.cmd("edit " .. vim.fn.fnameescape(file))
   end
-  vim.api.nvim_win_set_cursor(0, { loc.line or 1, 0 })
+  vim.api.nvim_win_set_cursor(0, { loc.line or 1, (loc.col or 1) - 1 })
   vim.api.nvim_echo({ { "[i18n] definition: " .. key, "Comment" } }, false, {})
   return true
 end

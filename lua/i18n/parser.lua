@@ -5,7 +5,7 @@ local utils = require('i18n.utils')
 -- 记录每个文件的前缀信息与 key 元数据
 -- file_prefixes[locale][absolute_file_path] = "system."
 M.file_prefixes = {}
--- meta[locale][full_key] = { file = "...", line = number }
+-- meta[locale][full_key] = { file = "...", line = number, col = number }
 M.meta = {}
 
 -- 解析 JSON 文件
@@ -32,6 +32,20 @@ local function parse_json(content)
 
   local flat = {}
   local line_map = {}
+  local col_map = {}
+
+  local function find_line_and_col(seg)
+    for idx, l in ipairs(lines) do
+      -- 匹配 "key": 或 'key':
+      local pattern = '([\'"])' .. vim.pesc(seg) .. '%1%s*:'
+      local s = l:find(pattern)
+      if s then
+        -- s 指向引号位置，列号取 key 第一个字符（引号后一位），1-based
+        return idx, s + 1
+      end
+    end
+    return 1, 1
+  end
 
   local function traverse(tbl, prefix)
     for k, v in pairs(tbl) do
@@ -40,13 +54,15 @@ local function parse_json(content)
         traverse(v, full_key)
       else
         flat[full_key] = v
-        line_map[full_key] = guess_line(k)
+        local line, col = find_line_and_col(k)
+        line_map[full_key] = line
+        col_map[full_key] = col
       end
     end
   end
 
   traverse(decoded, "")
-  return flat, line_map
+  return flat, line_map, col_map
 end
 
 -- 解析 YAML 文件
@@ -54,6 +70,7 @@ local function parse_yaml(content)
   -- 简单的 YAML 解析，实际使用可能需要更复杂的解析器
   local result = {}
   local line_map = {}
+  local col_map = {}
   local idx = 0
   for line in content:gmatch("[^\r\n]+") do
     idx = idx + 1
@@ -64,7 +81,7 @@ local function parse_yaml(content)
       line_map[key] = idx
     end
   end
-  return result, line_map
+  return result, line_map, col_map
 end
 
 -- 解析 .properties 文件 (key=value / key:value，忽略 # 或 ! 开头注释，简单实现)
@@ -115,6 +132,7 @@ local function parse_js(content)
   local root = tree:root()
   local result = {}
   local line_map = {}
+  local col_map = {}
 
   -- 查找 export default/module.exports 的对象节点
   local function find_export_object(node)
@@ -179,7 +197,9 @@ local function parse_js(content)
           result[full_key] = value
           -- key_node:start() 返回 0-based 行
           if key_node and key_node:start() then
-            line_map[full_key] = key_node:start() + 1
+            local row, col = key_node:start()
+            line_map[full_key] = row + 1
+            col_map[full_key] = (col or 0) + 1
           end
         end
       end
@@ -191,7 +211,7 @@ local function parse_js(content)
     traverse_object(obj_node, "")
   end
 
-  return result, line_map
+  return result, line_map, col_map
 end
 
 -- 根据文件扩展名解析文件
@@ -371,7 +391,7 @@ local function load_file_config(file_config, locale)
       local actual_prefix = fill_prefix(actual_file, filepath, prefix)
       -- vim.notify("actual_file: " .. actual_file .. "\nfilepath: " .. filepath .. "\nactual_prefix: " .. actual_prefix)
       if utils.file_exists(actual_file) then
-        local data, line_map = parse_file(actual_file)
+        local data, line_map, col_map = parse_file(actual_file)
         if data then
           M.translations[locale] = M.translations[locale] or {}
           M.meta[locale] = M.meta[locale] or {}
@@ -382,7 +402,7 @@ local function load_file_config(file_config, locale)
             M.translations[locale][final_key] = v
             local line = line_map and line_map[k] or 1
             local abs_path = vim.loop.fs_realpath(actual_file) or vim.fn.fnamemodify(actual_file, ":p")
-            M.meta[locale][final_key] = { file = abs_path, line = line }
+            M.meta[locale][final_key] = { file = abs_path, line = line, col = (col_map and col_map[k]) or 1 }
           end
         end
       end
@@ -390,7 +410,7 @@ local function load_file_config(file_config, locale)
   else
     -- 直接加载文件
     if utils.file_exists(filepath) then
-      local data, line_map = parse_file(filepath)
+      local data, line_map, col_map = parse_file(filepath)
       if data then
         M.translations[locale] = M.translations[locale] or {}
         M.meta[locale] = M.meta[locale] or {}
@@ -401,7 +421,7 @@ local function load_file_config(file_config, locale)
           M.translations[locale][final_key] = v
           local line = line_map and line_map[k] or 1
             local abs_path = vim.loop.fs_realpath(filepath) or vim.fn.fnamemodify(filepath, ":p")
-            M.meta[locale][final_key] = { file = abs_path, line = line }
+            M.meta[locale][final_key] = { file = abs_path, line = line, col = (col_map and col_map[k]) or 1 }
         end
       end
     end
