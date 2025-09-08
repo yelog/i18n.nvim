@@ -21,7 +21,7 @@ local function open_location(loc, key)
 end
 
 -- 尝试跳转，成功返回 true，失败返回 false（不抛错，供用户键位逻辑判断）
-function M.try_definition()
+function M.i18n_definition()
   local key = display.get_key_under_cursor and display.get_key_under_cursor()
   if not key then return false end
   -- 使用当前显示语言（由 I18nNextLocale 切换）而不是固定第一个 locales
@@ -32,6 +32,6 @@ function M.try_definition()
 end
 
 -- 兼容命名；用户可调用 require('i18n.navigation').jump_i18n_definition()
-M.jump_i18n_definition = M.try_definition
+M.jump_i18n_definition = M.i18n_definition
 
 return M

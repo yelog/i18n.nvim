@@ -149,13 +149,13 @@ Patterns support placeholders like `{locales}` and custom variables such as `{mo
 
 Navigation
 Jump from an i18n key usage to its definition (default locale file + line) using an explicit helper function:
-Helper: require('i18n.navigation').try_definition() -> boolean
+Helper: require('i18n.navigation').i18n_definition() -> boolean
 Returns true if it jumped, false if no i18n key / location found (so you can fallback to LSP).
 
 Example keymap that prefers i18n, then falls back to LSP definition:
 ```lua
 vim.keymap.set('n', 'gd', function()
-  if require('i18n.navigation').try_definition() then
+  if require('i18n.navigation').i18n_definition() then
     return
   end
   vim.lsp.buf.definition()
@@ -165,7 +165,7 @@ end, { desc = 'i18n or LSP definition' })
 Separate key (only i18n):
 ```lua
 vim.keymap.set('n', 'gK', function()
-  require('i18n.navigation').try_definition()
+  require('i18n.navigation').i18n_definition()
 end, { desc = 'Jump to i18n definition' })
 ```
 
