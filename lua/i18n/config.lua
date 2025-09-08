@@ -12,7 +12,27 @@ M.defaults = {
   sources = {
     "src/locales/{locales}.json",
   },
-  navigation = {}
+  navigation = {},
+  fzf = {
+    -- 动作按键映射（数组内多个字符串表示多个触发键）
+    keys = {
+      copy_key        = { "enter", "ctrl-y" },
+      jump_current    = { "ctrl-j" },
+      jump_default    = { "ctrl-d" },
+      choose_locale   = { "ctrl-l" },
+      split_jump      = { "ctrl-s" },
+      vsplit_jump     = { "ctrl-v" },
+      tab_jump        = { "ctrl-t" },
+      copy_translation = { "ctrl-c" },
+    },
+    jump = {
+      prefer_current_locale = true,
+      open_cmd_default = "edit", -- edit|split|vsplit|tabedit
+    },
+    show_missing = true,
+    missing_style = "Error",
+    preview_order = "config", -- config|current_first|default_first
+  }
 }
 
 -- 记录项目级配置

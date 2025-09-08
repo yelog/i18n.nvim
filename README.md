@@ -70,6 +70,14 @@ Recommended keymaps (example using lazy-loaded setup):
 -- Fuzzy find i18n keys (fzf integration)
 vim.keymap.set("n", "<leader>fi", require("i18n").show_i18n_keys_with_fzf, { desc = "Fuzzy find i18n key" })
 vim.keymap.set("n", "<D-S-n>", require("i18n").show_i18n_keys_with_fzf, { desc = "Fuzzy find i18n key" })
+-- Actions inside the picker (defaults):
+--  Enter / Ctrl-Y : copy key
+--  Ctrl-J         : jump (current locale, fallback default)
+--  Ctrl-D         : jump default locale
+--  Ctrl-L         : choose locale (secondary picker)
+--  Ctrl-V / Ctrl-S / Ctrl-T : vsplit / split / tab jump
+--  Ctrl-C         : copy current locale translation
+-- You can override these in setup(): fzf.keys = { jump_current = { "ctrl-j" }, ... }
 ```
 
 

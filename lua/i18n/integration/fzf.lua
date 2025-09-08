@@ -1,66 +1,272 @@
--- 集成 fzf-lua 查询 i18n key (修复版本)
+-- 集成 fzf-lua 查询 & 操作 i18n key（增强：多动作 + 跳转）
 local parser = require("i18n.parser")
 local fzf = require("fzf-lua")
+local display = require("i18n.display")
+local config = require("i18n.config")
+local navigation = require("i18n.navigation")
 
 local M = {}
 
--- 计算字符串显示宽度（处理中文字符）
-local function display_width(str)
-  -- 添加 nil 检查，防止 gmatch 在 nil 值上调用
-  if not str or str == "" then
-    return 0
-  end
+---------------------------------------------------------------------
+-- 工具函数
+---------------------------------------------------------------------
+local function get_cfg()
+  return (config.options and config.options.fzf) or {}
+end
 
-  local width = 0
-  for char in str:gmatch("[%z\1-\127\194-\244][\128-\191]*") do
-    if char:byte() > 127 then
-      width = width + 2 -- 中文字符宽度为2
+local function get_locales()
+  return (config.options and config.options.locales) or {}
+end
+
+local function get_current_locale()
+  local ok, d = pcall(display.get_current_locale)
+  if ok then return d end
+  local locales = get_locales()
+  return locales[1]
+end
+
+local function disp_width(str)
+  if not str or str == "" then return 0 end
+  local w = 0
+  for ch in str:gmatch("[%z\1-\127\194-\244][\128-\191]*") do
+    if ch:byte() > 127 then
+      w = w + 2
     else
-      width = width + 1 -- 英文字符宽度为1
+      w = w + 1
     end
   end
-  return width
+  return w
 end
 
--- 右填充字符串到指定宽度
 local function pad_right(str, width)
-  -- 添加 nil 检查
   str = str or ""
-
-  local current_width = display_width(str)
-  if current_width >= width then
-    return str
-  end
-  return str .. string.rep(" ", width - current_width)
+  local cur = disp_width(str)
+  if cur >= width then return str end
+  return str .. string.rep(" ", width - cur)
 end
 
--- 截断过长文本并添加省略号
-local function truncate_text(text, max_width)
-  -- 添加 nil 检查
-  if not text or text == "" then
-    return ""
-  end
-
-  if display_width(text) <= max_width then
-    return text
-  end
-
-  local truncated = ""
-  local width = 0
-  for char in text:gmatch("[%z\1-\127\194-\244][\128-\191]*") do
-    local char_width = char:byte() > 127 and 2 or 1
-    if width + char_width > max_width - 3 then -- 留3个字符给省略号
-      truncated = truncated .. "..."
+local function truncate(str, width)
+  if not str or str == "" then return "" end
+  if disp_width(str) <= width then return str end
+  local out, w = "", 0
+  for ch in str:gmatch("[%z\1-\127\194-\244][\128-\191]*") do
+    local cw = ch:byte() > 127 and 2 or 1
+    if w + cw > width - 3 then
+      out = out .. "..."
       break
     end
-    truncated = truncated .. char
-    width = width + char_width
+    out = out .. ch
+    w = w + cw
   end
-  return truncated
+  return out
 end
 
+local function normalize_keymaps(tbl)
+  local map = {}
+  for action, keys in pairs(tbl or {}) do
+    if type(keys) == "string" then
+      map[keys] = action
+    elseif type(keys) == "table" then
+      for _, k in ipairs(keys) do
+        map[k] = action
+      end
+    end
+  end
+  return map
+end
+
+local function open_location(loc, key, open_cmd)
+  if not loc or not loc.file then
+    vim.notify("[i18n] No location for key: " .. key, vim.log.levels.WARN)
+    return false
+  end
+  open_cmd = open_cmd or "edit"
+  if vim.fn.filereadable(loc.file) ~= 1 then
+    vim.notify("[i18n] File not readable: " .. loc.file, vim.log.levels.WARN)
+    return false
+  end
+  if open_cmd ~= "edit" then
+    vim.cmd(string.format("%s %s", open_cmd, vim.fn.fnameescape(loc.file)))
+  else
+    vim.cmd("edit " .. vim.fn.fnameescape(loc.file))
+  end
+  vim.api.nvim_win_set_cursor(0, { loc.line or 1, (loc.col or 1) - 1 })
+  vim.api.nvim_echo({ { "[i18n] jumped: " .. key, "Comment" } }, false, {})
+  return true
+end
+
+local function jump_key(key, locale, open_cmd)
+  local loc = parser.get_key_location(key, locale)
+  if not loc then return false end
+  return open_location(loc, key, open_cmd)
+end
+
+---------------------------------------------------------------------
+-- 预览内容
+---------------------------------------------------------------------
+local function build_preview(key)
+  if not key then return "" end
+  local locales = get_locales()
+  local all = parser.get_all_translations(key) or {}
+  local meta = parser.meta or {}
+  local cur = get_current_locale()
+  local def = locales[1]
+  local cfg = get_cfg()
+  local show_missing = cfg.show_missing ~= false
+  local missing_placeholder = "<Missing translation>"
+
+  local order_mode = (cfg.preview_order or "config")
+  local ordered = {}
+  if order_mode == "current_first" and cur then
+    table.insert(ordered, cur)
+    for _, l in ipairs(locales) do
+      if l ~= cur then table.insert(ordered, l) end
+    end
+  elseif order_mode == "default_first" and def then
+    table.insert(ordered, def)
+    for _, l in ipairs(locales) do
+      if l ~= def then table.insert(ordered, l) end
+    end
+  else
+    ordered = locales
+  end
+
+  local lines = {}
+  table.insert(lines, "Key: " .. key)
+  table.insert(lines, string.rep("-", math.max(10, #key + 5)))
+  for _, l in ipairs(ordered) do
+    local val = all[l]
+    local text = val
+    if (val == nil or val == "") and show_missing then
+      text = missing_placeholder
+    end
+    local mark = (l == cur) and " *" or ""
+    local pos = ""
+    if meta[l] and meta[l][key] then
+      local m = meta[l][key]
+      local rel = vim.fn.fnamemodify(m.file, ":.")
+      pos = string.format(" (%s:%d)", rel, m.line or 1)
+    end
+    table.insert(lines, string.format("%s:%s %s%s", l, mark, text or "", pos))
+  end
+  return table.concat(lines, "\n")
+end
+
+---------------------------------------------------------------------
+-- Locale 选择器（二级 fzf）
+---------------------------------------------------------------------
+local function choose_locale_and_jump(key)
+  local locales = get_locales()
+  local meta = parser.meta or {}
+  local items = {}
+  local current = get_current_locale()
+  for _, l in ipairs(locales) do
+    local has = (meta[l] and meta[l][key]) and "✔" or "✖"
+    local mark = (l == current) and "*" or " "
+    table.insert(items, string.format("%s [%s] %s", l, has, mark))
+  end
+  fzf.fzf_exec(items, {
+    prompt = "Locale > ",
+    actions = {
+      ["default"] = function(sel)
+        if not sel or not sel[1] then return end
+        local line = sel[1]
+        local locale = line:match("^(%S+)%s")
+        if not locale then return end
+        if not (meta[locale] and meta[locale][key]) then
+          vim.notify("[i18n] No location for key in locale: " .. locale, vim.log.levels.WARN)
+          return
+        end
+        jump_key(key, locale, "edit")
+      end
+    },
+    previewer = function(_)
+      return build_preview(key)
+    end,
+  })
+end
+
+---------------------------------------------------------------------
+-- 动作执行
+---------------------------------------------------------------------
+local function extract_key_from_selected(selected, display_list, index_to_key)
+  if not selected or not selected[1] then return nil end
+  local selected_line = selected[1]
+  for idx, line in ipairs(display_list) do
+    if line == selected_line then
+      return index_to_key[idx]
+    end
+  end
+  return nil
+end
+
+local function perform_action(action, key, open_variant)
+  if not key then return end
+  local locales = get_locales()
+  local cfg = get_cfg()
+  local jump_cfg = cfg.jump or {}
+  if action == "copy_key" then
+    vim.fn.setreg("+", key)
+    vim.notify("[i18n] Copied key: " .. key, vim.log.levels.INFO)
+  elseif action == "copy_translation" then
+    local cur = get_current_locale()
+    local text = parser.get_translation(key, cur)
+    if text then
+      vim.fn.setreg("+", text)
+      vim.notify(string.format("[i18n] Copied [%s] translation", cur), vim.log.levels.INFO)
+    else
+      vim.notify("[i18n] Missing translation in current locale", vim.log.levels.WARN)
+    end
+  elseif action == "jump_current" then
+    local cur = get_current_locale()
+    local tried = false
+    if jump_cfg.prefer_current_locale and cur then
+      tried = true
+      if jump_key(key, cur, open_variant or jump_cfg.open_cmd_default or "edit") then
+        return
+      end
+    end
+    local def = locales[1]
+    if def and (not tried or def ~= cur) then
+      if jump_key(key, def, open_variant or jump_cfg.open_cmd_default or "edit") then
+        return
+      end
+    end
+    vim.notify("[i18n] Cannot jump: no location found", vim.log.levels.WARN)
+  elseif action == "jump_default" then
+    local def = locales[1]
+    if not def or not jump_key(key, def, open_variant or "edit") then
+      vim.notify("[i18n] Default locale location not found", vim.log.levels.WARN)
+    end
+  elseif action == "choose_locale" then
+    choose_locale_and_jump(key)
+  elseif action == "split_jump" then
+    perform_action("jump_current", key, "split")
+  elseif action == "vsplit_jump" then
+    perform_action("jump_current", key, "vsplit")
+  elseif action == "tab_jump" then
+    perform_action("jump_current", key, "tabedit")
+  end
+end
+
+local function normalize_keymaps(tbl)
+  local map = {}
+  for action, keys in pairs(tbl or {}) do
+    if type(keys) == "string" then
+      map[keys] = action
+    elseif type(keys) == "table" then
+      for _, k in ipairs(keys) do
+        map[k] = action
+      end
+    end
+  end
+  return map
+end
+
+---------------------------------------------------------------------
+-- 主入口
+---------------------------------------------------------------------
 function M.show_i18n_keys_with_fzf()
-  -- 增加对 parser.translations 的 nil 检查
   local translations = parser.translations or {}
   local keys_map = {}
   for _, locale_tbl in pairs(translations) do
@@ -70,172 +276,87 @@ function M.show_i18n_keys_with_fzf()
   end
 
   local key_list = {}
-  for k, _ in pairs(keys_map) do
+  for k in pairs(keys_map) do
     table.insert(key_list, k)
   end
+  table.sort(key_list)
 
-  -- 排序 key 列表
-  -- 先按长度，再在长度相同条件下按字母序
-  table.sort(key_list, function(a, b)
-    if #a == #b then
-      return a < b
-    end
-    return #a < #b
-  end)
-
-  -- 获取所有语言
-  local locales = require("i18n.config").options.locales or {}
-
-  -- 计算等宽的列宽
-  local col_count = 1 + #locales
+  local locales = get_locales()
+  local cur_locale = get_current_locale()
   local total_columns = vim.o.columns or 120
-  local separator_width = (col_count - 1) * 3 -- " │ " 分隔符总宽度
-  local padding = 4                           -- 左右边距
-  local available_width = total_columns - separator_width - padding
+  local padding = 4
+  local available_width = total_columns - padding
+  local key_col_width = math.min(50, math.max(20, math.floor(available_width * 0.55)))
+  local val_col_width = math.min(50, math.max(15, available_width - key_col_width - 3))
 
-  -- 所有列等宽分配
-  local col_width = math.floor(available_width / col_count)
-
-  -- 设置最小和最大列宽限制
-  local min_col_width = 15 -- 最小列宽，确保能显示基本内容
-  local max_col_width = 40 -- 最大列宽，避免单列过宽
-
-  -- 应用限制
-  col_width = math.max(col_width, min_col_width)
-  col_width = math.min(col_width, max_col_width)
-
-  -- 创建列宽数组（所有列等宽）
-  local col_widths = {}
-  for i = 1, col_count do
-    col_widths[i] = col_width
-  end
-
-  -- 构造显示列表
   local display_list = {}
-  -- 行索引 -> 完整 key 的映射，保证复制时能得到未截断 key
   local index_to_key = {}
 
-  -- 构造数据行
-  for index, key in ipairs(key_list) do
-    local original_key = type(key) == "string" and key or tostring(key or "")
+  for idx, key in ipairs(key_list) do
+    index_to_key[idx] = key
+    local val = parser.get_translation(key, cur_locale) or ""
+    local row = pad_right(truncate(key, key_col_width), key_col_width) ..
+        " │ " .. pad_right(truncate(val, val_col_width), val_col_width)
+    table.insert(display_list, row)
+  end
 
-    -- 保存索引到 key 的映射
-    index_to_key[index] = original_key
+  local header = pad_right("Key", key_col_width) ..
+      " │ " .. pad_right(cur_locale .. " (current)", val_col_width)
 
-    -- 构建显示行
-    local display_key = truncate_text(original_key, col_widths[1])
-    local row = { pad_right(display_key, col_widths[1]) }
+  local cfg = get_cfg()
+  local keymap_rev = normalize_keymaps(cfg.keys or {})
+  local actions = {}
 
-    for i, locale in ipairs(locales) do
-      local value = ""
-      local locale_data = translations[locale]
-      if locale_data and type(locale_data) == 'table' and locale_data[key] ~= nil then
-        value = locale_data[key]
-      end
-      value = type(value) == "string" and value or tostring(value or "")
+  actions["default"] = function(selected)
+    local key = extract_key_from_selected(selected, display_list, index_to_key)
+    perform_action("copy_key", key)
+  end
 
-      local truncated_value = truncate_text(value, col_widths[i + 1])
-      table.insert(row, pad_right(truncated_value, col_widths[i + 1]))
+  local function register_action_key(fzf_key, action_name)
+    actions[fzf_key] = function(selected)
+      local key = extract_key_from_selected(selected, display_list, index_to_key)
+      perform_action(action_name, key)
     end
-
-    local display_line = table.concat(row, " │ ")
-    table.insert(display_list, display_line)
   end
 
-  -- 构造固定的表头（高亮当前默认语言）
-  local display_ok, display_mod = pcall(require, "i18n.display")
-  local current_locale = nil
-  if display_ok and type(display_mod.get_current_locale) == "function" then
-    current_locale = display_mod.get_current_locale()
-  end
-  if not current_locale then
-    current_locale = locales[1]
-  end
-
-  local HL_START = "\27[7m" -- 反转视频 standout，高亮当前默认语言
-  local HL_END = "\27[0m"
-
-  local header_row = { pad_right("Key", col_widths[1]) }
-  for i, locale in ipairs(locales) do
-    local cell = pad_right(locale, col_widths[i + 1])
-    if locale == current_locale then
-      cell = HL_START .. cell .. HL_END
+  for fzf_key, action_name in pairs(keymap_rev) do
+    if action_name ~= "copy_key" then
+      register_action_key(fzf_key, action_name)
     end
-    table.insert(header_row, cell)
   end
-  local header = table.concat(header_row, " │ ")
 
-  -- 构造分隔线
-  local separator_parts = {}
-  for i = 1, #col_widths do
-    table.insert(separator_parts, string.rep("─", col_widths[i]))
-  end
-  local separator = table.concat(separator_parts, "─┼─")
-
-  -- 使用 fzf_exec 直接传递显示列表
   fzf.fzf_exec(display_list, {
     prompt = "I18n Key > ",
-    header = header .. "\n" .. separator,
-    header_lines = 2,
-    actions = {
-      ["default"] = function(selected)
-        if selected and selected[1] then
-          -- 通过行内容找到对应的索引
-          local selected_line = selected[1]
-          for index, display_line in ipairs(display_list) do
-            if display_line == selected_line then
-              local key = index_to_key[index]
-              if key then
-                -- vim.notify("选中 key: " .. key)
-                vim.fn.setreg('+', key)
-              end
-              break
-            end
-          end
+    header = header,
+    header_lines = 1,
+    actions = actions,
+    previewer = function(item)
+      if not item then return "" end
+      for idx, line in ipairs(display_list) do
+        if line == item then
+          local key = index_to_key[idx]
+          return build_preview(key)
         end
-      end,
-      ["ctrl-c"] = function(selected)
-        if selected and selected[1] then
-          -- 通过行内容找到对应的索引
-          local selected_line = selected[1]
-          for index, display_line in ipairs(display_list) do
-            if display_line == selected_line then
-              local key = index_to_key[index]
-              if key then
-                vim.fn.setreg('+', key)
-                -- vim.notify("已复制 key 到剪贴板: " .. key)
-              end
-              break
-            end
-          end
-        end
-      end,
-    },
+      end
+      return ""
+    end,
     fzf_opts = {
       ["--no-multi"] = "",
-      ["--no-sort"] = "", -- 保持预排序
+      ["--no-sort"] = "",
       ["--layout"] = "reverse",
       ["--info"] = "inline",
       ["--border"] = "rounded",
-      ["--ansi"] = "",     -- 启用 ANSI 颜色代码支持
-      ["--tabstop"] = "1", -- 设置 tab 宽度为 1，避免对齐问题
+      ["--ansi"] = "",
+      ["--tabstop"] = "1",
+      ["--preview-window"] = "right:60%",
     },
     winopts = {
-      width = 0.9,  -- 窗口宽度占屏幕 90%
-      height = 0.8, -- 窗口高度占屏幕 80%
-      row = 0.5,    -- 垂直居中
-      col = 0.5,    -- 水平居中
+      width = 0.9,
+      height = 0.85,
+      row = 0.5,
+      col = 0.5,
     },
   })
-end
-
--- 可选：添加一个配置函数，允许用户自定义列宽策略
-function M.setup(opts)
-  opts = opts or {}
-  if opts.column_width_strategy then
-    -- 可以在这里添加其他列宽策略的支持
-    -- 例如: "equal", "adaptive", "custom"
-  end
 end
 
 return M
