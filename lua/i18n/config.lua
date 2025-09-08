@@ -3,20 +3,22 @@ local M = {}
 M.defaults = {
   show_translation = true,
   show_origin = false,
-  -- 是否在翻译源( locale )文件中的 key 行尾展示默认语言翻译（虚拟文本）
+  -- Whether to display the default language translation as virtual text at the end of key lines in locale files
   show_locale_file_eol_translation = true,
   diagnostics = true,
   -- func_pattern:
-  -- 使用 frontier(%f) 确保 t / $t 前面不是字母或数字或下划线，避免 split('/'), last(" 等误匹配
-  -- %f[^%w_]t  表示 t 前不是 %w_（字母数字下划线）
-  -- 示例可匹配: t("a.b"),  t('x'),  (t("x"),  $t("x")
-  -- 不匹配: split("..."), data.last("..."), my_t("x")
+  -- Use frontier (%f) to ensure t / $t is not preceded by a letter, digit, or underscore,
+  -- avoiding false matches like split('/'), last("...
+  -- %f[^%w_]t means t is not preceded by %w_ (alphanumeric or underscore)
+  -- Examples that will match: t("a.b"), t('x'), (t("x"), $t("x")
+  -- Examples that won't match: split("..."), data.last("..."), my_t("x")
   func_pattern = {
-    -- 使用 frontier：%f[%w_]t 确保 t 前不是字母/数字/下划线/（保持 split('/ 之类不匹配）
-    -- 示例匹配: t('a.b'),  title: t("x.y"), (t("x")), {{$t('k')}}
-    -- 不匹配: split('x'), my_t('x'), last("x")
+    -- Use frontier: %f[%w_]t ensures t is not preceded by letter/digit/underscore
+    -- Matches examples: t('a.b'), title: t("x.y"), (t("x")), {{$t('k')}}
+    -- Non-matching examples: split('x'), my_t('x'), last("x")
     "%f[%w_]t%(['\"]([^'\"]+)['\"]",
-    -- $t 形式（前面任意非 $ 字符或行首）；%f[%$] 断言当前位置后是 $ 且前一字符不是 $
+    -- $t form (preceded by any non-$ character or start of line); %f[%$] asserts the following char is $
+    -- and the previous char is not $
     "%f[%$]%$t%(['\"]([^'\"]+)['\"]",
   },
   locales = { "en", "zh" },
@@ -25,16 +27,16 @@ M.defaults = {
   },
   navigation = {},
   fzf = {
-    -- 动作按键映射（数组内多个字符串表示多个触发键）
-    -- 使用 Vim 风格表示法 (<cr>, <c-j> 等)，内部会转换为 fzf 可识别键
+    -- Action key mappings (multiple trigger keys allowed as multiple strings in the array)
+    -- Use Vim-style notation (<cr>, <c-j>, etc.); they will be converted to keys recognized by fzf
     keys = {
-      copy_key           = { "<cr>" },  -- 复制国际化 key
-      copy_translation   = { "<c-y>" }, -- 复制当前显示语言翻译
-      jump               = { "<c-j>" }, -- 跳转当前显示语言（失败回退默认语言）
-      split_jump         = { "<c-x>" }, -- 水平分屏跳转
-      vsplit_jump        = { "<c-v>" }, -- 垂直分屏跳转
-      tab_jump           = { "<c-t>" }, -- 标签页跳转
-      choose_locale_jump = { "<c-l>" }, -- 选择语言后跳转
+      copy_key           = { "<cr>" },  -- Copy i18n key
+      copy_translation   = { "<c-y>" }, -- Copy translation of current display language
+      jump               = { "<c-j>" }, -- Jump to current display language (fallback to default language if failed)
+      split_jump         = { "<c-x>" }, -- Horizontal split jump
+      vsplit_jump        = { "<c-v>" }, -- Vertical split jump
+      tab_jump           = { "<c-t>" }, -- Tab page jump
+      choose_locale_jump = { "<c-l>" }, -- Jump after choosing language
     },
     jump = {
       prefer_current_locale = true,
@@ -46,11 +48,11 @@ M.defaults = {
   }
 }
 
--- 记录项目级配置
+-- Project-level configuration cache
 M.project_config = nil
 M.options = {}
 
--- 尝试从当前工作目录加载项目级配置
+-- Attempt to load project-level configuration from current working directory
 local function load_project_config()
   local config_files = { '.i18nrc.json', 'i18n.config.json', '.i18nrc.lua' }
   local cwd = vim.fn.getcwd()
@@ -65,17 +67,17 @@ local function load_project_config()
           if ok_decode and type(decoded) == "table" then
             return decoded, full
           else
-            vim.notify("[i18n] 解析 JSON 失败: " .. full, vim.log.levels.WARN)
+            vim.notify("[i18n] Failed to parse JSON config: " .. full, vim.log.levels.WARN)
           end
         else
-          vim.notify("[i18n] 读取配置文件失败: " .. full, vim.log.levels.WARN)
+          vim.notify("[i18n] Failed to read config file: " .. full, vim.log.levels.WARN)
         end
       elseif filename:match('%.lua$') then
         local ok_dofile, lua_tbl = pcall(dofile, full)
         if ok_dofile and type(lua_tbl) == "table" then
           return lua_tbl, full
         else
-          vim.notify("[i18n] 运行 Lua 配置失败: " .. full, vim.log.levels.WARN)
+          vim.notify("[i18n] Failed to run Lua config: " .. full, vim.log.levels.WARN)
         end
       end
     end
@@ -83,7 +85,7 @@ local function load_project_config()
   return nil, nil
 end
 
--- 允许外部强制重新加载项目配置
+-- Allow external callers to force reload the project configuration
 function M.reload_project_config()
   local project_cfg = load_project_config()
   if project_cfg then
@@ -92,7 +94,7 @@ function M.reload_project_config()
   return M.project_config
 end
 
--- opts 预期形式（已移除 default 层级，用户直接传配置）：
+-- Expected shape of opts (removed default layer; user passes config directly):
 -- require('i18n').setup({
 --   locales = {...},
 --   sources = {...},
