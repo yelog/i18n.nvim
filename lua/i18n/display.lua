@@ -37,7 +37,7 @@ end
 -- 判断文件类型是否需要处理（动态适配插件使用者在插件管理器里设置的 ft）
 local function is_supported_ft(bufnr)
   bufnr = bufnr or 0
-  local ft = vim.api.nvim_buf_get_option(bufnr, 'filetype')
+  local ft = vim.bo[bufnr].filetype
   local opts = config.options or {}
   -- 允许用户通过 options.filetypes 或 options.ft 传入
   local fts = opts.filetypes or opts.ft
