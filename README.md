@@ -233,7 +233,7 @@ require('i18n').setup(require('i18n.config').options)
 
 ## How it works (brief)
 
-- JSON/YAML/.properties files are read and decoded (.properties 使用简单 key=value 解析；YAML 使用简化解析器，仅覆盖常见场景)。
+- JSON/YAML/.properties files are read and decoded (.properties uses simple key=value parsing; YAML uses a simplified parser covering only common scenarios).
 - JS/TS modules are parsed with Tree-sitter to find exported objects (supports `export default`, `module.exports`, direct object literals, and nested objects). Parsed keys and string values are normalized (quotes removed) and flattened.
 - Translations are merged into an internal table keyed by language and dot-separated keys.
 
