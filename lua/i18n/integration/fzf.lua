@@ -62,13 +62,22 @@ local function truncate(str, width)
 end
 
 local function normalize_keymaps(tbl)
+  local function to_fzf_key(k)
+    if type(k) ~= "string" then return k end
+    local lower = k:lower()
+    if lower == "<cr>" then return "enter" end
+    local ctrl = lower:match("^<c%-(%a)>$")
+    if ctrl then return "ctrl-" .. ctrl end
+    return k
+  end
+
   local map = {}
   for action, keys in pairs(tbl or {}) do
     if type(keys) == "string" then
-      map[keys] = action
+      map[to_fzf_key(keys)] = action
     elseif type(keys) == "table" then
       for _, k in ipairs(keys) do
-        map[k] = action
+        map[to_fzf_key(k)] = action
       end
     end
   end
@@ -105,7 +114,7 @@ end
 -- 预览内容
 ---------------------------------------------------------------------
 local function build_preview(key)
-  if not key then return "" end
+  if not key then return " " end
   local locales = get_locales()
   local all = parser.get_all_translations(key) or {}
   local meta = parser.meta or {}
@@ -249,19 +258,8 @@ local function perform_action(action, key, open_variant)
   end
 end
 
-local function normalize_keymaps(tbl)
-  local map = {}
-  for action, keys in pairs(tbl or {}) do
-    if type(keys) == "string" then
-      map[keys] = action
-    elseif type(keys) == "table" then
-      for _, k in ipairs(keys) do
-        map[k] = action
-      end
-    end
-  end
-  return map
-end
+-- 注意：此处已在文件前部实现带 <c-*> 转换的 normalize_keymaps，避免重复定义
+-- （保留空块以免大块 diff 影响可读性）
 
 ---------------------------------------------------------------------
 -- 主入口
@@ -331,14 +329,14 @@ function M.show_i18n_keys_with_fzf()
     header_lines = 1,
     actions = actions,
     previewer = function(item)
-      if not item then return "" end
+      if not item then return " " end
       for idx, line in ipairs(display_list) do
         if line == item then
           local key = index_to_key[idx]
           return build_preview(key)
         end
       end
-      return ""
+      return " "
     end,
     fzf_opts = {
       ["--no-multi"] = "",
