@@ -278,4 +278,4 @@ Contributions, bug reports and PRs are welcome. Please:
 
 ## License
 
-MIT
+Apacche-2.0 license. See [LICENSE](LICENSE) for details.
