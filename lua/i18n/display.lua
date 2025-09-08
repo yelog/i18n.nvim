@@ -6,6 +6,10 @@ local parser = require('i18n.parser')
 local ns = vim.api.nvim_create_namespace('i18n_display')
 local diag_ns = vim.api.nvim_create_namespace('i18n_display_diag')
 
+-- 最近一次弹窗窗口与缓冲区
+M._popup_win = nil
+M._popup_buf = nil
+
 -- 当前显示语言索引（基于 config.locales）
 M._current_locale_index = 1
 
@@ -245,12 +249,18 @@ M.show_popup = function()
     table.insert(lines, string.format("%s: %s", locale, text))
   end
 
-  -- 创建浮动窗口
+  -- 创建浮动窗口（先关闭已有的）
+  if M._popup_win and vim.api.nvim_win_is_valid(M._popup_win) then
+    pcall(vim.api.nvim_win_close, M._popup_win, true)
+  end
+  if M._popup_buf and vim.api.nvim_buf_is_valid(M._popup_buf) then
+    pcall(vim.api.nvim_buf_delete, M._popup_buf, { force = true })
+  end
+
   local width = 0
   for _, line in ipairs(lines) do
     width = math.max(width, #line)
   end
-
   local height = #lines
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
@@ -262,23 +272,43 @@ M.show_popup = function()
     col = 0,
     row = 1,
     style = 'minimal',
-    border = 'rounded'
+    border = 'rounded',
   }
 
   local win = vim.api.nvim_open_win(buf, false, opts)
+  M._popup_win = win
+  M._popup_buf = buf
 
   -- 设置高亮
   vim.api.nvim_buf_add_highlight(buf, -1, 'Title', 0, 0, -1)
 
-  -- 自动关闭
+  -- 自动关闭（定时）
   vim.defer_fn(function()
-    if vim.api.nvim_win_is_valid(win) then
-      vim.api.nvim_win_close(win, true)
+    if M._popup_win and vim.api.nvim_win_is_valid(M._popup_win) then
+      pcall(vim.api.nvim_win_close, M._popup_win, true)
     end
   end, 3000)
 
   -- ESC 关闭
-  vim.api.nvim_buf_set_keymap(buf, 'n', '<Esc>', ':close<CR>', { noremap = true, silent = true })
+  vim.keymap.set('n', '<Esc>', function()
+    if M._popup_win and vim.api.nvim_win_is_valid(M._popup_win) then
+      pcall(vim.api.nvim_win_close, M._popup_win, true)
+    end
+  end, { buffer = buf, nowait = true, silent = true })
+
+  -- 光标移动 / buffer 切换自动关闭
+  local group = vim.api.nvim_create_augroup('I18nPopupAutoClose', { clear = true })
+  vim.api.nvim_create_autocmd({ 'CursorMoved', 'CursorMovedI', 'BufEnter', 'BufLeave' }, {
+    group = group,
+    callback = function()
+      if M._popup_win and vim.api.nvim_win_is_valid(M._popup_win) then
+        pcall(vim.api.nvim_win_close, M._popup_win, true)
+      end
+      if M._popup_buf and vim.api.nvim_buf_is_valid(M._popup_buf) then
+        pcall(vim.api.nvim_buf_delete, M._popup_buf, { force = true })
+      end
+    end
+  })
 
   return true
 end
