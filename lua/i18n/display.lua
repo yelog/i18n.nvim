@@ -223,19 +223,20 @@ function M.get_key_under_cursor()
 end
 
 -- 显示弹窗
+-- 成功显示返回 true；未找到 key 或无翻译返回 false
 M.show_popup = function()
   local current_key = M.get_key_under_cursor()
 
   if not current_key then
     vim.notify("No i18n key found at cursor position", vim.log.levels.WARN)
-    return
+    return false
   end
 
   -- 获取所有翻译
   local translations = parser.get_all_translations(current_key)
   if vim.tbl_isempty(translations) then
     vim.notify("No translations found for: " .. current_key, vim.log.levels.WARN)
-    return
+    return false
   end
 
   -- 构建显示内容
@@ -278,6 +279,8 @@ M.show_popup = function()
 
   -- ESC 关闭
   vim.api.nvim_buf_set_keymap(buf, 'n', '<Esc>', ':close<CR>', { noremap = true, silent = true })
+
+  return true
 end
 
 -- 设置替换模式

@@ -155,10 +155,9 @@ Returns true if it jumped, false if no i18n key / location found (so you can fal
 Example keymap that prefers i18n, then falls back to LSP definition:
 ```lua
 vim.keymap.set('n', 'gd', function()
-  if require('i18n.navigation').i18n_definition() then
-    return
+  if not require('i18n.navigation').i18n_definition() then
+    vim.lsp.buf.definition()
   end
-  vim.lsp.buf.definition()
 end, { desc = 'i18n or LSP definition' })
 ```
 
@@ -175,6 +174,20 @@ navigation = {
 }
 
 Line numbers are best-effort for JSON/YAML/.properties (heuristic matching); JS/TS uses Tree-sitter for higher accuracy.
+
+Popup helper (returns boolean)
+You can show a transient popup of all translations for the key under cursor:
+Helper: require('i18n.display').show_popup() -> boolean
+Returns true if a popup was shown, false if no key / translations found.
+
+Example combined mapping (try popup first, else fallback to signature help):
+```lua
+vim.keymap.set({ "n", "i" }, "<C-k>", function()
+  if not require('i18n.display').show_popup() then
+    vim.lsp.buf.signature_help()
+  end
+end, { desc = "i18n popup or signature help" })
+```
 
 
 ### Project-level configuration (recommended)
