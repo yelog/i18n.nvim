@@ -27,6 +27,12 @@ M.setup = function(opts)
     display.refresh()
   end, { desc = "Toggle i18n original text display/hide" })
 
+  vim.api.nvim_create_user_command('I18nToggleLocaleFileEol', function()
+    config.options.show_locale_file_eol_translation =
+      not config.options.show_locale_file_eol_translation
+    display.refresh()
+  end, { desc = "Toggle show translation at end of line in locale files" })
+
   -- 更新外部可访问的 options 引用
   M.options = config.options
 end

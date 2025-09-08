@@ -244,11 +244,13 @@ M.refresh_buffer = function(bufnr)
       cleared = true
     end
 
-    for full_key, meta in pairs(meta_tbl) do
-      if meta.file == abs_path then
-        local value = parser.get_translation(full_key, default_locale)
-        if value then
-          set_eol_virtual_text(bufnr, (meta.line or 1) - 1, value)
+    if config.options.show_locale_file_eol_translation ~= false then
+      for full_key, meta in pairs(meta_tbl) do
+        if meta.file == abs_path then
+          local value = parser.get_translation(full_key, default_locale)
+          if value then
+            set_eol_virtual_text(bufnr, (meta.line or 1) - 1, value)
+          end
         end
       end
     end

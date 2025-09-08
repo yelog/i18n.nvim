@@ -3,6 +3,8 @@ local M = {}
 M.defaults = {
   show_translation = true,
   show_origin = false,
+  -- 是否在翻译源( locale )文件中的 key 行尾展示默认语言翻译（虚拟文本）
+  show_locale_file_eol_translation = true,
   diagnostics = true,
   -- func_pattern:
   -- 使用 frontier(%f) 确保 t / $t 前面不是字母或数字或下划线，避免 split('/'), last(" 等误匹配
