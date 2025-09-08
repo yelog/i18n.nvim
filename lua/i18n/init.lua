@@ -29,9 +29,13 @@ M.setup = function(opts)
 
   vim.api.nvim_create_user_command('I18nToggleLocaleFileEol', function()
     config.options.show_locale_file_eol_translation =
-      not config.options.show_locale_file_eol_translation
+        not config.options.show_locale_file_eol_translation
     display.refresh()
   end, { desc = "Toggle show translation at end of line in locale files" })
+
+  vim.api.nvim_create_user_command('I18nDefinitionNextLocale', function()
+    require('i18n.navigation').i18n_definition_next_locale()
+  end, { desc = "Jump to same i18n key in next locale file" })
 
   -- 更新外部可访问的 options 引用
   M.options = config.options
@@ -56,6 +60,10 @@ M.get_current_locale = display.get_current_locale
 -- 代理 fzf 集成功能，统一从 i18n 导出
 M.show_i18n_keys_with_fzf = function()
   return require('i18n.integration.fzf').show_i18n_keys_with_fzf()
+end
+
+M.i18n_definition_next_locale = function()
+  return require('i18n.navigation').i18n_definition_next_locale()
 end
 
 -- 暴露当前配置（在 setup 后更新）
