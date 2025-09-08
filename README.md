@@ -149,13 +149,14 @@ Patterns support placeholders like `{locales}` and custom variables such as `{mo
 
 Navigation
 Jump from an i18n key usage to its definition (default locale file + line) using an explicit helper function:
-Helper: require('i18n.navigation').i18n_definition() -> boolean
+Helper: require('i18n').i18n_definition() -> boolean
+Unified API: all public helpers are available via require('i18n') (e.g. i18n_definition, show_popup, reload_project_config, next_locale).
 Returns true if it jumped, false if no i18n key / location found (so you can fallback to LSP).
 
 Example keymap that prefers i18n, then falls back to LSP definition:
 ```lua
 vim.keymap.set('n', 'gd', function()
-  if not require('i18n.navigation').i18n_definition() then
+  if not require('i18n').i18n_definition() then
     vim.lsp.buf.definition()
   end
 end, { desc = 'i18n or LSP definition' })
@@ -164,7 +165,7 @@ end, { desc = 'i18n or LSP definition' })
 Separate key (only i18n):
 ```lua
 vim.keymap.set('n', 'gK', function()
-  require('i18n.navigation').i18n_definition()
+  require('i18n').i18n_definition()
 end, { desc = 'Jump to i18n definition' })
 ```
 
@@ -177,13 +178,13 @@ Line numbers are best-effort for JSON/YAML/.properties (heuristic matching); JS/
 
 Popup helper (returns boolean)
 You can show a transient popup of all translations for the key under cursor:
-Helper: require('i18n.display').show_popup() -> boolean
+Helper: require('i18n').show_popup() -> boolean
 Returns true if a popup was shown, false if no key / translations found.
 
 Example combined mapping (try popup first, else fallback to signature help):
 ```lua
 vim.keymap.set({ "n", "i" }, "<C-k>", function()
-  if not require('i18n.display').show_popup() then
+  if not require('i18n').show_popup() then
     vim.lsp.buf.signature_help()
   end
 end, { desc = "i18n popup or signature help" })
@@ -237,8 +238,8 @@ require('i18n').setup({
 
 If later you add a project config file, just reopen the project (or call:
 ```lua
-require('i18n.config').reload_project_config()
-require('i18n').setup(require('i18n.config').options)
+require('i18n').reload_project_config()
+require('i18n').setup(require('i18n').options)
 ```
 ) to apply overrides.
 

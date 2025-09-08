@@ -26,6 +26,28 @@ M.setup = function(opts)
     config.options.show_origin = not config.options.show_origin
     display.refresh()
   end, { desc = "Toggle i18n original text display/hide" })
+
+  -- 更新外部可访问的 options 引用
+  M.options = config.options
 end
+
+-- 对外统一导出辅助方法，避免用户引用内部子模块
+M.reload_project_config = function()
+  return config.reload_project_config()
+end
+
+M.i18n_definition = function()
+  return require('i18n.navigation').i18n_definition()
+end
+
+M.show_popup = function()
+  return require('i18n.display').show_popup()
+end
+
+M.next_locale = display.next_locale
+M.get_current_locale = display.get_current_locale
+
+-- 暴露当前配置（在 setup 后更新）
+M.options = config.options
 
 return M
