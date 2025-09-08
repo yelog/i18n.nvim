@@ -17,14 +17,13 @@ M.defaults = {
     -- 动作按键映射（数组内多个字符串表示多个触发键）
     -- 使用 Vim 风格表示法 (<cr>, <c-j> 等)，内部会转换为 fzf 可识别键
     keys = {
-      copy_key         = { "<cr>" },  -- 回车复制 key
-      jump_current     = { "<c-j>" }, -- 跳转当前显示语言（失败回退默认语言）
-      jump_default     = { "<c-d>" }, -- 跳转默认语言
-      choose_locale    = { "<c-l>" }, -- 选择语言后跳转
-      split_jump       = { "<c-x>" }, -- 水平分屏跳转
-      vsplit_jump      = { "<c-v>" }, -- 垂直分屏跳转
-      tab_jump         = { "<c-t>" }, -- 可自行添加 <c-t>
-      copy_translation = { "<c-y>" }, -- 复制当前显示语言翻译
+      copy_key           = { "<cr>" },  -- 复制国际化 key
+      copy_translation   = { "<c-y>" }, -- 复制当前显示语言翻译
+      jump               = { "<c-j>" }, -- 跳转当前显示语言（失败回退默认语言）
+      split_jump         = { "<c-x>" }, -- 水平分屏跳转
+      vsplit_jump        = { "<c-v>" }, -- 垂直分屏跳转
+      tab_jump           = { "<c-t>" }, -- 标签页跳转
+      choose_locale_jump = { "<c-l>" }, -- 选择语言后跳转
     },
     jump = {
       prefer_current_locale = true,

@@ -226,7 +226,7 @@ local function perform_action(action, key, open_variant)
     else
       vim.notify("[i18n] Missing translation in current locale", vim.log.levels.WARN)
     end
-  elseif action == "jump_current" then
+  elseif action == "jump" then
     local cur = get_current_locale()
     local tried = false
     if jump_cfg.prefer_current_locale and cur then
@@ -242,12 +242,7 @@ local function perform_action(action, key, open_variant)
       end
     end
     vim.notify("[i18n] Cannot jump: no location found", vim.log.levels.WARN)
-  elseif action == "jump_default" then
-    local def = locales[1]
-    if not def or not jump_key(key, def, open_variant or "edit") then
-      vim.notify("[i18n] Default locale location not found", vim.log.levels.WARN)
-    end
-  elseif action == "choose_locale" then
+  elseif action == "choose_locale_jump" then
     choose_locale_and_jump(key)
   elseif action == "split_jump" then
     perform_action("jump_current", key, "split")
