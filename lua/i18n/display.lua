@@ -57,6 +57,9 @@ local function is_supported_ft(bufnr)
     tsx = true,
     jsx = true,
     java = true,
+    json = true,
+    jproperties = true,
+    yaml = true,
   }
   return default[ft] == true
 end
