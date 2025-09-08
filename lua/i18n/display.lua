@@ -132,7 +132,37 @@ end
 -- 刷新缓冲区显示
 M.refresh_buffer = function(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
-  if not is_supported_ft(bufnr) then return end
+
+  -- 提前判定是否为翻译文件：即属于任一 locale 的已解析文件
+  local buf_path = vim.api.nvim_buf_get_name(bufnr)
+  local abs_path = vim.loop.fs_realpath(buf_path) or buf_path
+  local parser = require('i18n.parser')
+
+  local file_locale = nil
+  for _, loc in ipairs((config.options or {}).locales or {}) do
+    local fp = parser.file_prefixes[loc]
+    if fp then
+      -- 先直接匹配绝对路径
+      if fp[abs_path] then
+        file_locale = loc
+        break
+      end
+      -- 回退：尝试把已存路径 realpath 后比较（兼容旧数据未存绝对路径的情况）
+      for stored_path, _ in pairs(fp) do
+        local stored_abs = vim.loop.fs_realpath(stored_path) or vim.fn.fnamemodify(stored_path, ":p")
+        if stored_abs == abs_path then
+          file_locale = loc
+          break
+        end
+      end
+      if file_locale then break end
+    end
+  end
+
+  -- 若不是支持的代码文件且也不是翻译文件，则直接返回
+  if (not is_supported_ft(bufnr)) and (not file_locale) then
+    return
+  end
 
   -- 清除旧的虚拟文本
   vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
@@ -149,28 +179,16 @@ M.refresh_buffer = function(bufnr)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local diagnostics = {}
 
-  -- 如果当前缓冲区是翻译文件（根据 parser.meta/default_locale 判断），
-  -- 则为每个 key 的行尾添加该默认语言的翻译，随后直接返回（不执行普通代码文件内联流程）
-  local buf_path = vim.api.nvim_buf_get_name(bufnr)
-  local abs_path = vim.loop.fs_realpath(buf_path) or buf_path
-  local parser = require('i18n.parser')
-  local is_translation_file = false
-  local line_key_map = {}
-
-  if default_locale and parser.meta and parser.meta[default_locale] then
-    for full_key, meta in pairs(parser.meta[default_locale]) do
+  -- 若是翻译文件，仅当其语言 == 当前默认语言时才在行尾展示翻译
+  if file_locale then
+    -- 无论当前文件语言是否为当前显示语言，都显示“当前显示语言(default_locale)”的翻译
+    local meta_tbl = parser.meta[file_locale] or {}
+    for full_key, meta in pairs(meta_tbl) do
       if meta.file == abs_path then
-        is_translation_file = true
-        line_key_map[meta.line] = full_key
-      end
-    end
-  end
-
-  if is_translation_file then
-    for line_num, full_key in pairs(line_key_map) do
-      local value = parser.get_translation(full_key, default_locale)
-      if value then
-        set_eol_virtual_text(bufnr, line_num - 1, value)
+        local value = parser.get_translation(full_key, default_locale)
+        if value then
+          set_eol_virtual_text(bufnr, (meta.line or 1) - 1, value)
+        end
       end
     end
     return

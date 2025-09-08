@@ -396,7 +396,8 @@ local function load_file_config(file_config, locale)
           M.translations[locale] = M.translations[locale] or {}
           M.meta[locale] = M.meta[locale] or {}
           M.file_prefixes[locale] = M.file_prefixes[locale] or {}
-          M.file_prefixes[locale][actual_file] = actual_prefix
+          local abs_store = vim.loop.fs_realpath(actual_file) or vim.fn.fnamemodify(actual_file, ":p")
+          M.file_prefixes[locale][abs_store] = actual_prefix
           for k, v in pairs(data) do
             local final_key = actual_prefix .. k
             M.translations[locale][final_key] = v
@@ -415,7 +416,8 @@ local function load_file_config(file_config, locale)
         M.translations[locale] = M.translations[locale] or {}
         M.meta[locale] = M.meta[locale] or {}
         M.file_prefixes[locale] = M.file_prefixes[locale] or {}
-        M.file_prefixes[locale][filepath] = prefix
+        local abs_store = vim.loop.fs_realpath(filepath) or vim.fn.fnamemodify(filepath, ":p")
+        M.file_prefixes[locale][abs_store] = prefix
         for k, v in pairs(data) do
           local final_key = prefix .. k
           M.translations[locale][final_key] = v
