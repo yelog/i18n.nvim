@@ -32,6 +32,41 @@ M.file_prefixes = {}
 -- meta[locale][full_key] = { file = "...", line = number, col = number }
 M.meta = {}
 
+-- 已解析出的实际翻译文件绝对路径列表（用于监控变更）
+M._translation_files = {}
+
+-- 设置自动命令监控翻译文件的写入 / 删除 / 外部变更
+function M._setup_file_watchers()
+  -- 若没有文件则直接返回
+  if not M._translation_files or #M._translation_files == 0 then
+    return
+  end
+  -- 统一使用同一个 augroup，每次重建
+  local group = vim.api.nvim_create_augroup('I18nTranslationFilesWatcher', { clear = true })
+  local patterns_added = {}
+  for _, file in ipairs(M._translation_files) do
+    if file and file ~= "" and not patterns_added[file] then
+      patterns_added[file] = true
+      vim.api.nvim_create_autocmd({ 'BufWritePost', 'BufDelete', 'FileChangedShellPost' }, {
+        group = group,
+        pattern = file,
+        callback = function()
+          -- 重新加载翻译并刷新展示
+          local ok_p, parser_mod = pcall(require, 'i18n.parser')
+          if ok_p then
+            parser_mod.load_translations()
+          end
+          local ok_d, display_mod = pcall(require, 'i18n.display')
+            if ok_d and display_mod.refresh then
+              display_mod.refresh()
+            end
+        end,
+        desc = "Reload i18n translations on file change",
+      })
+    end
+  end
+end
+
 -- 解析 JSON 文件
 local function parse_json(content)
   local ok, decoded = pcall(vim.json.decode, content)
@@ -455,6 +490,7 @@ local function load_file_config(file_config, locale)
           M.file_prefixes[locale] = M.file_prefixes[locale] or {}
           local abs_store = vim.loop.fs_realpath(actual_file) or vim.fn.fnamemodify(actual_file, ":p")
           M.file_prefixes[locale][abs_store] = actual_prefix
+          table.insert(M._translation_files, abs_store)
           for k, v in pairs(data) do
             local final_key = actual_prefix .. k
             M.translations[locale][final_key] = v
@@ -475,6 +511,7 @@ local function load_file_config(file_config, locale)
         M.file_prefixes[locale] = M.file_prefixes[locale] or {}
         local abs_store = vim.loop.fs_realpath(filepath) or vim.fn.fnamemodify(filepath, ":p")
         M.file_prefixes[locale][abs_store] = prefix
+        table.insert(M._translation_files, abs_store)
         for k, v in pairs(data) do
           local final_key = prefix .. k
           M.translations[locale][final_key] = v
@@ -490,6 +527,7 @@ end
 -- 加载所有翻译文件
 M.load_translations = function()
   M.translations = {}
+  M._translation_files = {}
   local options = config.options
 
   for _, locale in ipairs(options.locales) do
@@ -520,6 +558,9 @@ M.load_translations = function()
     table.insert(M.all_keys, k)
   end
   table.sort(M.all_keys)
+
+  -- 注册文件监控
+  M._setup_file_watchers()
 end
 
 -- 获取特定语言的翻译
