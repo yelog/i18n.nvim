@@ -1,0 +1,322 @@
+*i18n.nvim.txt* *i18n.nvim*                         i18n.nvim translation helper
+
+==============================================================================
+CONTENTS                                                *i18n.nvim-contents*
+
+  1. Intro ............................... |i18n.nvim-intro|
+  2. Features ............................ |i18n.nvim-features|
+  3. Installation ........................ |i18n.nvim-install|
+  4. Quickstart .......................... |i18n.nvim-quickstart|
+  5. Configuration ....................... |i18n.nvim-config|
+     5.1 Options Table ................... |i18n.nvim-options|
+  6. Project Config File ................. |i18n.nvim-project|
+  7. Commands ............................ |i18n.nvim-commands|
+  8. Keymaps ............................. |i18n.nvim-keymaps|
+  9. Navigation .......................... |i18n.nvim-navigation|
+ 10. Popup ................................|i18n.nvim-popup|
+ 11. FZF Integration ..................... |i18n.nvim-fzf|
+ 12. blink.cmp Integration ............... |i18n.nvim-blink|
+ 13. Diagnostics ......................... |i18n.nvim-diagnostics|
+ 14. API ................................. |i18n.nvim-api|
+ 15. Examples ............................ |i18n.nvim-examples|
+ 16. Troubleshooting ..................... |i18n.nvim-troubleshooting|
+ 17. License ............................. |i18n.nvim-license|
+
+==============================================================================
+INTRO                                                     *i18n.nvim-intro*
+
+Lightweight Neovim plugin to parse, display, navigate and fuzzy-find project
+i18n translation keys across JSON / YAML / .properties / JS / TS modules.
+
+==============================================================================
+FEATURES                                               *i18n.nvim-features*
+
+- Parse JSON / YAML / .properties / JS / TS (Tree-sitter) translation sources
+- Flatten nested objects -> dot keys:  user.profile.name
+- Inline virtual text (translation or original key)
+- Popup with all locale translations
+- Jump from usage to definition line
+- FZF fuzzy picker (copy / jump / choose locale)
+- blink.cmp completion source (multi-locale documentation)
+- Project-level config override
+- Optional diagnostics for missing translations
+- Hot reload & dynamic next-locale switching
+
+==============================================================================
+INSTALLATION                                           *i18n.nvim-install*
+
+Lazy.nvim example: >
+  {
+    'yelog/i18n.nvim',
+    ft = { 'typescript', 'vue' },
+    dependencies = {
+      'ibhagwan/fzf-lua',
+      'nvim-treesitter/nvim-treesitter'
+    },
+    config = function()
+      require('i18n').setup({
+        locales = { 'en', 'zh' },
+        sources = { 'src/locales/{locales}.json' },
+      })
+    end
+  }
+<
+
+Requires: Neovim 0.8+, proper Tree-sitter parsers for JS/TS if those sources
+are used.
+
+==============================================================================
+QUICKSTART                                           *i18n.nvim-quickstart*
+
+1. Install plugin + dependencies
+2. Configure locales + sources in setup()
+3. Open project file
+4. Use :I18nNextLocale / :I18nToggleOrigin / picker
+5. Jump with mapping (see |i18n.nvim-navigation|)
+
+Minimal: >
+  require('i18n').setup({
+    locales = { 'en', 'zh' },
+    sources = { 'src/locales/{locales}.json' },
+  })
+<
+
+==============================================================================
+CONFIGURATION                                           *i18n.nvim-config*
+
+Call once (can re-run safely).  Options merged:
+defaults < user setup < project config file.
+
+See |i18n.nvim-options|.
+
+Reapply after editing project config: >
+  :lua require('i18n').reload_project_config()
+  :lua require('i18n').setup(require('i18n').options)
+<
+
+------------------------------------------------------------------------------
+OPTIONS TABLE                                          *i18n.nvim-options*
+
+Name              Type       Description
+locales           {string}   Ordered locales; first = default
+sources           {string|table} Patterns with placeholders {locales} {module}
+func_pattern      {string}  Lua patterns capturing key in () group 1
+filetypes / ft    {string}  Restrict processing
+show_translation  boolean   Show translated value inline
+show_origin       boolean   Show original key inline (mutually influential)
+diagnostic        bool|tbl  false disables; true default; table -> opts for
+                            vim.diagnostic.set
+navigation.open_cmd string  edit|vsplit|split|tabedit
+
+Source item as table:  { pattern = "src/.../{locales}/{module}.ts",
+                         prefix = "{module}." }
+
+Placeholders: {locales} expands per locale; custom placeholders (e.g.
+{module}, {bu}) are collected by scanning directory parts.
+
+==============================================================================
+PROJECT CONFIG FILE                                  *i18n.nvim-project*
+
+Auto-detected first existing at cwd:
+  .i18nrc.json
+  i18n.config.json
+  .i18nrc.lua
+
+Example .i18nrc.lua: >
+  return {
+    locales = { "en_US", "zh_CN" },
+    sources = {
+      "src/locales/{locales}.json",
+      { pattern = "src/lang/{locales}/{module}.ts", prefix = "{module}." },
+    },
+  }
+<
+
+==============================================================================
+COMMANDS                                               *i18n.nvim-commands*
+
+:I18nNextLocale          Cycle display locale (rotates locales array)
+:I18nToggleOrigin        Toggle inline showing translation vs key
+:I18nToggleLocaleFileEol Toggle EOL virtual translation in locale files
+
+All refresh inline display automatically.
+
+==============================================================================
+KEYMAPS                                                 *i18n.nvim-keymaps*
+
+Suggested: >
+  vim.keymap.set("n","<leader>fi",
+    require("i18n").show_i18n_keys_with_fzf,
+    { desc = "Fuzzy i18n key" })
+
+  vim.keymap.set("n","<D-S-n>", "<cmd>I18nNextLocale<CR>")
+  vim.keymap.set("n","<leader>io","<cmd>I18nToggleOrigin<CR>")
+  vim.keymap.set("n","gd", function()
+    if not require('i18n').i18n_definition() then
+      vim.lsp.buf.definition()
+    end
+  end)
+  vim.keymap.set({"n","i"}, "<C-k>", function()
+    if not require('i18n').show_popup() then
+      vim.lsp.buf.signature_help()
+    end
+  end)
+<
+
+==============================================================================
+NAVIGATION                                           *i18n.nvim-navigation*
+
+Function: >
+  require('i18n').i18n_definition()          -- boolean
+  require('i18n').i18n_definition_next_locale() -- jump using next locale
+<
+
+Falls back gracefully if no key; combine with LSP (see keymaps above).
+Line numbers heuristic for non-TS/JS; Tree-sitter gives better accuracy.
+
+==============================================================================
+POPUP                                                    *i18n.nvim-popup*
+
+Show all translations for key under cursor in a floating window: >
+  require('i18n').show_popup()
+<
+Returns false if no key / translations. Auto-closes on movement events.
+
+==============================================================================
+FZF INTEGRATION                                          *i18n.nvim-fzf*
+
+Picker: >
+  require('i18n').show_i18n_keys_with_fzf()
+<
+Default actions (inside picker):
+  <CR>  copy key
+  <C-y> copy current locale translation
+  <C-j> jump (current display locale, fallback default)
+  <C-l> choose locale then jump
+  <C-x> split jump
+  <C-v> vsplit jump
+  <C-t> tab jump
+
+Customize via setup(): >
+  require('i18n').setup({
+    fzf = {
+      keys = {
+        jump = { "<c-j>" },
+        choose_locale_jump = { "<c-l>" },
+      }
+    }
+  })
+<
+
+==============================================================================
+BLINK.CMP INTEGRATION                                   *i18n.nvim-blink*
+
+Enable source: >
+  require('blink.cmp').setup({
+    sources = {
+      default = { 'i18n', 'lsp', 'path', 'buffer' },
+      providers = {
+        i18n = {
+          name = 'i18n',
+          module = 'i18n.integration.blink_source',
+          opts = {}
+        },
+      },
+    },
+  })
+<
+Label = key; documentation = multi-locale lines.
+Tip: avoid typing '.' segments; fuzzy partial (e.g.  userprofnm ).
+
+==============================================================================
+DIAGNOSTICS                                         *i18n.nvim-diagnostics*
+
+If `diagnostic` is:
+  false -> clear + disable generation
+  true  -> enable default ERROR severity for missing translation
+  table -> forwarded as opts to vim.diagnostic.set
+
+Example disabling underline & virtual text: >
+  require('i18n').setup({
+    diagnostic = { underline = false, virtual_text = false }
+  })
+<
+
+==============================================================================
+API                                                       *i18n.nvim-api*
+
+Core (all via require('i18n')):
+  setup(opts)                       |i18n.nvim-config|
+  reload_project_config()           reload project file (returns table or nil)
+  i18n_definition()                 jump usage -> definition (bool)
+  i18n_definition_next_locale()     jump using next locale file
+  show_popup()                      popup translations (bool)
+  show_i18n_keys_with_fzf()         open picker
+  next_locale()                     (internal; wrapped by :I18nNextLocale)
+  options                           last merged options table
+
+==============================================================================
+EXAMPLES                                             *i18n.nvim-examples*
+
+Minimal: >
+  require('i18n').setup({
+    locales = { 'en', 'zh' },
+    sources = { 'src/locales/{locales}.json' },
+  })
+<
+
+Composite sources: >
+  require('i18n').setup({
+    locales = { 'en', 'fr', 'de' },
+    sources = {
+      "i18n/{locales}.json",
+      { pattern = "modules/{module}/i18n/{locales}.ts", prefix = "{module}." },
+    },
+  })
+<
+
+Popup fallback: >
+  vim.keymap.set("n","K", function()
+    if not require('i18n').show_popup() then
+      vim.lsp.buf.hover()
+    end
+  end)
+<
+
+Insert completion (blink.cmp): type part of key then <C-y>.
+
+Copy key quickly (FZF):
+  1. <leader>fi
+  2. fuzzy filter
+  3. <CR>
+
+Choose locale jump:
+  1. <leader>fi
+  2. pick key
+  3. <C-l>
+  4. select locale in secondary picker
+
+==============================================================================
+TROUBLESHOOTING                               *i18n.nvim-troubleshooting*
+
+No translations?  Check sources patterns & cwd.
+Missing JS/TS keys?  Ensure Tree-sitter parsers updated.
+Popup empty?  Cursor not on a recognized i18n call (see func_pattern).
+Wrong locale after switching?  Confirm locales order + call :I18nNextLocale.
+
+Force reload after adding files: >
+  :lua require('i18n').reload_project_config()
+  :lua require('i18n').setup(require('i18n').options)
+<
+
+Generate helptags (after adding this file manually): >
+  :helptags ALL
+<
+
+==============================================================================
+LICENSE                                               *i18n.nvim-license*
+
+Apache-2.0.  See LICENSE file.
+
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:
