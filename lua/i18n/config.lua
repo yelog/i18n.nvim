@@ -4,9 +4,18 @@ M.defaults = {
   show_translation = true,
   show_origin = false,
   diagnostics = true,
+  -- func_pattern:
+  -- 使用 frontier(%f) 确保 t / $t 前面不是字母或数字或下划线，避免 split('/'), last(" 等误匹配
+  -- %f[^%w_]t  表示 t 前不是 %w_（字母数字下划线）
+  -- 示例可匹配: t("a.b"),  t('x'),  (t("x"),  $t("x")
+  -- 不匹配: split("..."), data.last("..."), my_t("x")
   func_pattern = {
-    "t%(['\"]([^'\"]+)['\"]",
-    "%$t%(['\"]([^'\"]+)['\"]",
+    -- 使用 frontier：%f[%w_]t 确保 t 前不是字母/数字/下划线/（保持 split('/ 之类不匹配）
+    -- 示例匹配: t('a.b'),  title: t("x.y"), (t("x")), {{$t('k')}}
+    -- 不匹配: split('x'), my_t('x'), last("x")
+    "%f[%w_]t%(['\"]([^'\"]+)['\"]",
+    -- $t 形式（前面任意非 $ 字符或行首）；%f[%$] 断言当前位置后是 $ 且前一字符不是 $
+    "%f[%$]%$t%(['\"]([^'\"]+)['\"]",
   },
   locales = { "en", "zh" },
   sources = {
