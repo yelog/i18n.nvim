@@ -2,6 +2,30 @@ local M = {}
 local config = require('i18n.config')
 local utils = require('i18n.utils')
 
+-- Neovim(LuaJIT 5.1) 没有标准 utf8.char，这里实现一个安全的 UTF-8 编码函数
+local function u_char(cp)
+  if type(cp) ~= "number" or cp < 0 then return "" end
+  if cp <= 0x7F then
+    return string.char(cp)
+  elseif cp <= 0x7FF then
+    local b1 = 0xC0 + math.floor(cp / 0x40)
+    local b2 = 0x80 + (cp % 0x40)
+    return string.char(b1, b2)
+  elseif cp <= 0xFFFF then
+    local b1 = 0xE0 + math.floor(cp / 0x1000)
+    local b2 = 0x80 + (math.floor(cp / 0x40) % 0x40)
+    local b3 = 0x80 + (cp % 0x40)
+    return string.char(b1, b2, b3)
+  elseif cp <= 0x10FFFF then
+    local b1 = 0xF0 + math.floor(cp / 0x40000)
+    local b2 = 0x80 + (math.floor(cp / 0x1000) % 0x40)
+    local b3 = 0x80 + (math.floor(cp / 0x40) % 0x40)
+    local b4 = 0x80 + (cp % 0x40)
+    return string.char(b1, b2, b3, b4)
+  end
+  return ""
+end
+
 -- 记录每个文件的前缀信息与 key 元数据
 -- file_prefixes[locale][absolute_file_path] = "system."
 M.file_prefixes = {}
@@ -98,7 +122,40 @@ local function parse_properties(content)
         key, value = trimmed:match("^([^%s]+)%s+(.*)$")
       end
       if key and value then
+        -- 去掉行尾续行反斜杠（简单处理，不做真正跨行拼接）
         value = value:gsub("\\$", "")
+
+        -- 先处理 Unicode 代理对 (高代理+D800-DBFF, 低代理+DC00-DFFF)
+        -- 形式: \uD83D\uDE02 -> 😂
+        value = value:gsub("\\u(d[89ABab][0-9A-Fa-f][0-9A-Fa-f])\\u(d[CSDEcsde][0-9A-Fa-f][0-9A-Fa-f])", function(hi, lo)
+          local hi_n = tonumber(hi, 16)
+          local lo_n = tonumber(lo, 16)
+          if hi_n and lo_n then
+            local codepoint = 0x10000 + ((hi_n - 0xD800) * 0x400) + (lo_n - 0xDC00)
+            if codepoint <= 0x10FFFF then
+              return u_char(codepoint)
+            end
+          end
+          return ""
+        end)
+
+        -- 再处理普通 \uXXXX
+        value = value:gsub("\\u(%x%x%x%x)", function(hex)
+          local cp = tonumber(hex, 16)
+          if cp then
+            return u_char(cp)
+          end
+          return ""
+        end)
+
+        -- 常见转义序列
+        value = value
+          :gsub("\\n", "\n")
+          :gsub("\\t", "\t")
+          :gsub("\\r", "\r")
+          :gsub("\\f", "\f")
+          :gsub("\\\\", "\\")
+
         result[key] = value
         line_map[key] = idx
       end
