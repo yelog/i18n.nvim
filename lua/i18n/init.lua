@@ -47,6 +47,11 @@ end
 M.next_locale = display.next_locale
 M.get_current_locale = display.get_current_locale
 
+-- 代理 fzf 集成功能，统一从 i18n 导出
+M.show_i18n_keys_with_fzf = function()
+  return require('i18n.integration.fzf').show_i18n_keys_with_fzf()
+end
+
 -- 暴露当前配置（在 setup 后更新）
 M.options = config.options
 

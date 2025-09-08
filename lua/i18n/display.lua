@@ -305,12 +305,7 @@ M.show_popup = function()
     end
   end
 
-  -- 自动关闭（定时）
-  vim.defer_fn(function()
-    if M._popup_win and vim.api.nvim_win_is_valid(M._popup_win) then
-      pcall(vim.api.nvim_win_close, M._popup_win, true)
-    end
-  end, 3000)
+  -- 自动关闭已移除：弹窗将保持，直到光标移动/切换 buffer 的自动命令或手动 <Esc> 关闭
 
   -- ESC 关闭
   vim.keymap.set('n', '<Esc>', function()

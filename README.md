@@ -68,8 +68,8 @@ Example configuration using lazy.nvim:
 Recommended keymaps (example using lazy-loaded setup):
 ```lua
 -- Fuzzy find i18n keys (fzf integration)
-vim.keymap.set("n", "<leader>fi", require("i18n.integration.fzf").show_i18n_keys_with_fzf, { desc = "Fuzzy find i18n key" })
-vim.keymap.set("n", "<D-S-n>", require("i18n.integration.fzf").show_i18n_keys_with_fzf, { desc = "Fuzzy find i18n key" })
+vim.keymap.set("n", "<leader>fi", require("i18n").show_i18n_keys_with_fzf, { desc = "Fuzzy find i18n key" })
+vim.keymap.set("n", "<D-S-n>", require("i18n").show_i18n_keys_with_fzf, { desc = "Fuzzy find i18n key" })
 ```
 
 
