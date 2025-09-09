@@ -294,7 +294,7 @@ M.refresh_buffer = function(bufnr)
           severity = type(diag_opt) == "table" and diag_opt.severity or
               (vim.diagnostic and vim.diagnostic.severity.ERROR) or 1,
           source = "i18n",
-          message = string.format("缺少翻译: %s (%s)", key_info.key, default_locale or "default"),
+          message = string.format("Missing translation: %s (%s)", key_info.key, default_locale or "default"),
         })
       end
 
