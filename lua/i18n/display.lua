@@ -28,12 +28,12 @@ end
 M.next_locale = function()
   local locales = (config.options or {}).locales or {}
   if #locales == 0 then
-    vim.notify("[i18n] 未配置 locales", vim.log.levels.WARN)
+    vim.notify("[i18n] No locales configured", vim.log.levels.WARN)
     return
   end
   M._current_locale_index = (M._current_locale_index % #locales) + 1
   local new_locale = locales[M._current_locale_index]
-  vim.notify(string.format("[i18n] 当前显示语言已切换为: %s", new_locale), vim.log.levels.INFO)
+  vim.notify(string.format("[i18n] Current display locale switched to: %s", new_locale), vim.log.levels.INFO)
   M.refresh()
 end
 

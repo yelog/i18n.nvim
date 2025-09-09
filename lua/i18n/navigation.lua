@@ -87,12 +87,12 @@ end
 function M.i18n_definition_next_locale()
   local key, cur_locale = detect_key_and_locale_at_cursor()
   if not key then
-    vim.notify("[i18n] 光标处未检测到 i18n key", vim.log.levels.WARN)
+    vim.notify("[i18n] No i18n key detected at cursor", vim.log.levels.WARN)
     return false
   end
   local locales = (config.options and config.options.locales) or {}
   if #locales == 0 then
-    vim.notify("[i18n] 未配置 locales", vim.log.levels.WARN)
+    vim.notify("[i18n] No locales configured", vim.log.levels.WARN)
     return false
   end
   local cur_index = 0
@@ -103,7 +103,7 @@ function M.i18n_definition_next_locale()
     end
   end
   if cur_index == 0 then
-    vim.notify(string.format("[i18n] 当前 locale (%s) 不在配置列表中", tostring(cur_locale)), vim.log.levels.WARN)
+    vim.notify(string.format("[i18n] Current locale (%s) is not in configured locales", tostring(cur_locale)), vim.log.levels.WARN)
     return false
   end
 
@@ -126,7 +126,7 @@ function M.i18n_definition_next_locale()
   end
 
   if not target_loc then
-    vim.notify(string.format("[i18n] 其它语言未找到 key: %s", key), vim.log.levels.WARN)
+    vim.notify(string.format("[i18n] Key not found in other locales: %s", key), vim.log.levels.WARN)
     return false
   end
 
