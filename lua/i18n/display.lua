@@ -32,6 +32,8 @@ M.next_locale = function()
     return
   end
   M._current_locale_index = (M._current_locale_index % #locales) + 1
+  local new_locale = locales[M._current_locale_index]
+  vim.notify(string.format("[i18n] 当前显示语言已切换为: %s", new_locale), vim.log.levels.INFO)
   M.refresh()
 end
 
