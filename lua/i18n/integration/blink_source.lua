@@ -154,6 +154,7 @@ function M:should_show_completion_items(ctx)
         local raw_prefix = prefix
           :gsub("%%(%W)", "%1")  -- %$  %.  %_ 等
           :gsub("%%%%", "%%")    -- 处理可能的 '%%%%' -> '%%'
+          :gsub("%%f%[[^%]]+%]", "") -- 去掉前导 frontier (%f[%w_]) 断言，它不会出现在实际源码里
 
         -- 将原始前缀转义为安全的 lua pattern 片段
         local esc = vim.pesc(raw_prefix)
