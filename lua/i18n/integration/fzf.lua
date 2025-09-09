@@ -189,7 +189,7 @@ local function choose_locale_and_jump(key)
         jump_key(key, locale, "edit")
       end
     },
-    previewer = function(_)
+    preview = function(_)
       return build_preview(key)
     end,
   })
@@ -327,16 +327,6 @@ function M.show_i18n_keys_with_fzf()
     header = header,
     header_lines = 1,
     actions = actions,
-    previewer = function(item)
-      if not item then return nil end
-      for idx, line in ipairs(display_list) do
-        if line == item then
-          local key = index_to_key[idx]
-          return build_preview(key)
-        end
-      end
-      return nil
-    end,
     fzf_opts = {
       ["--no-multi"] = "",
       ["--no-sort"] = "",
@@ -345,7 +335,6 @@ function M.show_i18n_keys_with_fzf()
       ["--border"] = "rounded",
       ["--ansi"] = "",
       ["--tabstop"] = "1",
-      ["--preview-window"] = "right:60%",
     },
     winopts = {
       width = 0.9,
