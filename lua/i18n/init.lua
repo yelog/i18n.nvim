@@ -27,6 +27,11 @@ M.setup = function(opts)
     display.refresh()
   end, { desc = "Toggle i18n original text display/hide" })
 
+  vim.api.nvim_create_user_command('I18nToggleTranslation', function()
+    config.options.show_translation = not config.options.show_translation
+    display.refresh()
+  end, { desc = "Toggle inline translation overlay on/off" })
+
   vim.api.nvim_create_user_command('I18nToggleLocaleFileEol', function()
     config.options.show_locale_file_eol_translation =
         not config.options.show_locale_file_eol_translation
