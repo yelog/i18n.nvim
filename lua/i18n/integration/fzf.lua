@@ -114,7 +114,7 @@ end
 -- 预览内容
 ---------------------------------------------------------------------
 local function build_preview(key)
-  if not key then return " " end
+  if not key then return nil end
   local locales = get_locales()
   local all = parser.get_all_translations(key) or {}
   local meta = parser.meta or {}
@@ -318,20 +318,24 @@ function M.show_i18n_keys_with_fzf()
     end
   end
 
+  if #display_list == 0 then
+    vim.notify("[i18n] 没有可用的 i18n key", vim.log.levels.WARN)
+    return
+  end
   fzf.fzf_exec(display_list, {
     prompt = "I18n Key > ",
     header = header,
     header_lines = 1,
     actions = actions,
     previewer = function(item)
-      if not item then return " " end
+      if not item then return nil end
       for idx, line in ipairs(display_list) do
         if line == item then
           local key = index_to_key[idx]
           return build_preview(key)
         end
       end
-      return " "
+      return nil
     end,
     fzf_opts = {
       ["--no-multi"] = "",
