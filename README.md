@@ -265,7 +265,7 @@ require('i18n').setup(require('i18n').options)
 - JS/TS modules are parsed with Tree-sitter to find exported objects (supports `export default`, `module.exports`, direct object literals, and nested objects). Parsed keys and string values are normalized (quotes removed) and flattened.
 - Translations are merged into an internal table keyed by language and dot-separated keys.
 
-## Use case
+## 📗 Use Case
 
 > [!NOTE]
 > If you work on multiple projects, keep the config in the project root to avoid editing your global Neovim config when switching.
