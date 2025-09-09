@@ -87,7 +87,7 @@ end
 function M.i18n_definition_next_locale()
   local key, cur_locale = detect_key_and_locale_at_cursor()
   if not key then
-    vim.notify("[i18n] No i18n key detected at cursor", vim.log.levels.WARN)
+    -- vim.notify("[i18n] No i18n key detected at cursor", vim.log.levels.WARN)
     return false
   end
   local locales = (config.options and config.options.locales) or {}
