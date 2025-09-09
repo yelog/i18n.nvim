@@ -268,12 +268,12 @@ require('i18n').setup(require('i18n').options)
 ## Use case
 
 > [!NOTE]
-> 如果同时开发多个项目，推荐在将配置放到项目根目录中，这样可以避免每次切换项目都要修改 Neovim 配置。
-> 如下示例均采用项目级配置，详细可以参考 [Project-level Configuration (recommended)](#-project-level-configuration-recommended)
+> If you work on multiple projects, keep the config in the project root to avoid editing your global Neovim config when switching.
+> All examples below use a project-level config; see [Project-level Configuration (recommended)](#-project-level-configuration-recommended).
 
-### 简单 json 国际化
+### Simple JSON i18n
 
-每个国际化语言一个 json 文件
+One JSON file per locale
 
 ```bash
 projectA
@@ -287,7 +287,7 @@ projectA
 ├── tsconfig.json
 └── vite.config.ts
 ```
-在项目根目录创建 `.i18nrc.lua` 文件，内容如下
+Create a `.i18nrc.lua` file at the project root:
 ```lua
 return {
   locales = { "en", "zh" },
@@ -297,7 +297,7 @@ return {
 }
 ```
 
-### 多模块国际化
+### Multi-module i18n
 
 ```bash
 projectB
@@ -317,7 +317,7 @@ projectB
 ├── tsconfig.json
 └── vite.config.ts
 ```
-在项目根目录创建 `.i18nrc.lua` 文件，内容如下
+Create a `.i18nrc.lua` file at the project root:
 ```lua
 return {
     locales = { "en-US", "zh-CN" },
@@ -327,7 +327,7 @@ return {
 }
 ```
 
-### 多模块多业务国际化
+### Multi-module multi-business i18n
 ```bash
 projectC
 ├── src
@@ -377,7 +377,7 @@ projectC
 ├── tsconfig.json
 └── vite.config.ts
 ```
-按照如下分散的国际化文件， 在项目根目录创建 `.i18nrc.lua` 文件，内容如下
+With the distributed i18n files below, create a `.i18nrc.lua` at the project root:
 ```lua
 return {
     locales = { "en-US", "zh-CN" },
