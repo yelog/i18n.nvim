@@ -265,6 +265,129 @@ require('i18n').setup(require('i18n').options)
 - JS/TS modules are parsed with Tree-sitter to find exported objects (supports `export default`, `module.exports`, direct object literals, and nested objects). Parsed keys and string values are normalized (quotes removed) and flattened.
 - Translations are merged into an internal table keyed by language and dot-separated keys.
 
+## Use case
+
+> [!NOTE]
+> 如果同时开发多个项目，推荐在将配置放到项目根目录中，这样可以避免每次切换项目都要修改 Neovim 配置。
+> 如下示例均采用项目级配置，详细可以参考 [Project-level Configuration (recommended)](#-project-level-configuration-recommended)
+
+### 简单 json 国际化
+
+每个国际化语言一个 json 文件
+
+```bash
+projectA
+├── src
+│   ├── App.vue
+│   ├── locales
+│   │   ├── en.json
+│   │   └── zh.json
+│   └── main.ts
+├── package.json
+├── tsconfig.json
+└── vite.config.ts
+```
+在项目根目录创建 `.i18nrc.lua` 文件，内容如下
+```lua
+return {
+  locales = { "en", "zh" },
+  sources= { 
+    "src/locales/{locales}.json"
+  }
+}
+```
+
+### 多模块国际化
+
+```bash
+projectB
+├── src
+│   ├── App.vue
+│   ├── locales
+│   │   ├── en-US
+│   │   │   ├── common.ts
+│   │   │   ├── system.ts
+│   │   │   └── ui.ts
+│   │   └── zh-CN
+│   │       ├── common.ts
+│   │       ├── system.ts
+│   │       └── ui.ts
+│   └── main.ts
+├── package.json
+├── tsconfig.json
+└── vite.config.ts
+```
+在项目根目录创建 `.i18nrc.lua` 文件，内容如下
+```lua
+return {
+    locales = { "en-US", "zh-CN" },
+    sources = {
+        { pattern = "src/locales/{locales}/{module}.ts", prefix = "{module}." }
+    }
+}
+```
+
+### 多模块多业务国际化
+```bash
+projectC
+├── src
+│   ├── App.vue
+│   ├── locales
+│   │   ├── en-US
+│   │   │   ├── common.ts
+│   │   │   ├── system.ts
+│   │   │   └── ui.ts
+│   │   └── zh-CN
+│   │       ├── common.ts
+│   │       ├── system.ts
+│   │       └── ui.ts
+│   ├── views
+│   │   ├── gmail
+│   │   │   └── locales
+│   │   │       ├── en-US
+│   │   │       │   ├── inbox.ts
+│   │   │       │   ├── compose.ts
+│   │   │       │   └── settings.ts
+│   │   │       └── zh-CN
+│   │   │           ├── inbox.ts
+│   │   │           ├── compose.ts
+│   │   │           └── settings.ts
+│   │   ├── calendar
+│   │   │   └── locales
+│   │   │       ├── en-US
+│   │   │       │   ├── events.ts
+│   │   │       │   ├── reminders.ts
+│   │   │       │   └── settings.ts
+│   │   │       └── zh-CN
+│   │   │           ├── events.ts
+│   │   │           ├── reminders.ts
+│   │   │           └── settings.ts
+│   │   └── search
+│   │       └── locales
+│   │           ├── en-US
+│   │           │   ├── query.ts
+│   │           │   ├── results.ts
+│   │           │   └── filters.ts
+│   │           └── zh-CN
+│   │               ├── query.ts
+│   │               ├── results.ts
+│   │               └── filters.ts
+│   └── main.ts
+├── package.json
+├── tsconfig.json
+└── vite.config.ts
+```
+按照如下分散的国际化文件， 在项目根目录创建 `.i18nrc.lua` 文件，内容如下
+```lua
+return {
+    locales = { "en-US", "zh-CN" },
+    sources = {
+      { pattern = "src/locales/{locales}/{module}.ts", prefix = "{module}." },
+      { pattern = "src/views/{business}/locales/{locales}/{module}.ts", prefix = "{business}.{module}." }
+    }
+}
+```
+
 ## 🤝 Contributing
 
 Contributions, bug reports and PRs are welcome. Please:
