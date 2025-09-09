@@ -1,7 +1,7 @@
 # 🌐 i18n.nvim
 
 A lightweight Neovim plugin for displaying and managing project i18n (translation) files directly in the editor.  
-Designed for front-end projects (JSON, YAML, JS/TS translation modules) and integrates with Tree-sitter to parse JS/TS translation objects.
+Designed to work across most project types (front-end, backend, mixed monorepos), supporting JSON, YAML, Java .properties, and JS/TS translation modules (Tree-sitter parses JS/TS translation objects).
 
 > [!WARNING]
 > This plugin is currently in an early stage of rapid validation and development. Configuration and API may change significantly at any time. Please use with caution and keep an eye on the changelog.
