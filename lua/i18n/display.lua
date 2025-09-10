@@ -33,7 +33,7 @@ M.next_locale = function()
   end
   M._current_locale_index = (M._current_locale_index % #locales) + 1
   local new_locale = locales[M._current_locale_index]
-  vim.notify(string.format("[i18n] Current display locale switched to: %s", new_locale), vim.log.levels.INFO)
+  vim.notify(string.format("[i18n] display locale: %s", new_locale), vim.log.levels.INFO)
   M.refresh()
 end
 
