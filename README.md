@@ -3,8 +3,44 @@
 A lightweight Neovim plugin for displaying and managing project i18n (translation) files directly in the editor.  
 Designed to work across most project types (front-end, backend, mixed monorepos), supporting JSON, YAML, Java .properties, and JS/TS translation modules (Tree-sitter parses JS/TS translation objects).
 
-> [!WARNING]
-> This plugin is currently in an early stage of rapid validation and development. Configuration and API may change significantly at any time. Please use with caution and keep an eye on the changelog.
+<table>
+  <tr>
+    <th>Show Translation</th>
+    <th>With <code>blink.cmp</code></th>
+  </tr>
+  <tr>
+    <td>
+      <img src="https://github.com/user-attachments/assets/cd6fc746-cfea-4021-8ee1-5449a23130b4" />
+    </td>
+    <td>
+      <img src="https://github.com/user-attachments/assets/7f58a5f8-80e9-49af-a137-0fbf39cede55" />
+    </td>
+  </tr>
+  <tr>
+    <th>Diagnostic</th>
+    <th>Help like <code>vim.lsp.buf.signature_help()</code></th>
+  </tr>
+  <tr>
+    <td>
+      <img src="https://github.com/user-attachments/assets/72365bcb-32bf-48c4-817e-b98f9f0609f0" />
+    </td>
+    <td>
+      <img src="https://github.com/user-attachments/assets/6655b2b8-2b52-4ee7-8233-7024bff8b21d" />
+    </td>
+  </tr>
+  <tr>
+    <th>Jump like <code>vim.lsp.buf.definition()</code></th>
+    <th>With <code>fzf-lua</code></th>
+  </tr>
+  <tr>
+    <td>
+      <img src="https://github.com/user-attachments/assets/05dc50b8-e219-4288-856b-ada0e452477b" />
+    </td>
+    <td>
+      <img src="https://github.com/user-attachments/assets/2ebc7189-f892-4f23-a1d9-b46042bca2da" />
+    </td>
+  </tr>
+</table>
 
 ## ✨ Key Features
 
