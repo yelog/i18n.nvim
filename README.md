@@ -168,6 +168,9 @@ Merge precedence (highest last):
 
 So a project config will override anything you set in your Neovim config for that particular project.
 
+> [!NOTE]
+> The complete, authoritative list of default options (with their current values) lives in `lua/i18n/config.lua` inside the `M.defaults` table. Consult that file to discover every available key, verify current defaults, or track new options introduced in updates.
+
 Common options (all optional when a project file is present):
 - locales: array of language codes, first is considered default
 - sources: array of file patterns or objects:
