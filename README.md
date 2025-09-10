@@ -64,7 +64,6 @@ Example configuration using lazy.nvim:
 {
   'yelog/i18n.nvim',
   lazy = true,
-  ft = { "vue", "typescript" },
   dependencies = {
     'ibhagwan/fzf-lua',
     'nvim-treesitter/nvim-treesitter'
@@ -79,14 +78,7 @@ Example configuration using lazy.nvim:
         'src/locales/{locales}.json',
         -- { pattern = "src/locales/lang/{locales}/{module}.ts",            prefix = "{module}." },
         -- { pattern = "src/views/{bu}/locales/lang/{locales}/{module}.ts", prefix = "{bu}.{module}." },
-      },
-      -- function patterns used to detect i18n keys in code
-      func_pattern = {
-        -- t('key') or t("key")
-        "t%(['\"]([^'\"]+)['\"]",
-        -- $t('key') or $t("key")
-        "%$t%(['\"]([^'\"]+)['\"]",
-      },
+      }
     })
   end
 }
@@ -104,8 +96,7 @@ Example configuration using lazy.nvim:
 Recommended keymaps (example using lazy-loaded setup):
 ```lua
 -- Fuzzy find i18n keys (fzf integration)
-vim.keymap.set("n", "<leader>fi", require("i18n").show_i18n_keys_with_fzf, { desc = "Fuzzy find i18n key" })
-vim.keymap.set("n", "<D-S-n>", require("i18n").show_i18n_keys_with_fzf, { desc = "Fuzzy find i18n key" })
+vim.keymap.set("n", "<leader>if", require("i18n").show_i18n_keys_with_fzf, { desc = "Fuzzy find i18n key" })
 -- Actions inside the picker (defaults / Vim style key notation):
 --  <CR>    : copy key
 --  <C-y>   : copy current locale translation
@@ -120,7 +111,7 @@ vim.keymap.set("n", "<D-S-n>", require("i18n").show_i18n_keys_with_fzf, { desc =
 
 ```lua
 -- Cycle display language (rotates locales; updates inline virtual text)
-vim.keymap.set("n", "<D-S-M-n>", "<cmd>I18nNextLocale<CR>", { desc = "Cycle i18n display language" })
+vim.keymap.set("n", "<leader>in", "<cmd>I18nNextLocale<CR>", { desc = "Cycle i18n display language" })
 -- Toggle whether inline shows the translated text or the raw i18n key
 vim.keymap.set("n", "<leader>io", "<cmd>I18nToggleOrigin<CR>", { desc = "Toggle i18n origin display" })
 ```
@@ -205,9 +196,16 @@ Returns true if it jumped, false if no i18n key / location found (so you can fal
 Example keymap that prefers i18n, then falls back to LSP definition:
 ```lua
 vim.keymap.set('n', 'gd', function()
-  if not require('i18n').i18n_definition() then
-    vim.lsp.buf.definition()
+  -- Jump from an i18n key usage to its definition
+  if require('i18n').i18n_definition() then
+    return
   end
+  -- Jump from current i18n definition to the next locale's definition, following the order in locales
+  if require('i18n').i18n_definition_next_locale() then
+    return
+  end
+  -- Fall back to LSP definition
+  vim.lsp.buf.definition()
 end, { desc = 'i18n or LSP definition' })
 ```
 
