@@ -38,7 +38,7 @@ Designed to work across most project types (front-end, backend, mixed monorepos)
     </td>
     <td>
       <img src="https://github.com/user-attachments/assets/2ebc7189-f892-4f23-a1d9-b46042bca2da" />
-    </td>
+  ns  </td>
   </tr>
 </table>
 
@@ -63,7 +63,6 @@ Example configuration using lazy.nvim:
 ```lua
 {
   'yelog/i18n.nvim',
-  lazy = true,
   dependencies = {
     'ibhagwan/fzf-lua',
     'nvim-treesitter/nvim-treesitter'
