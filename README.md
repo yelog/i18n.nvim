@@ -156,6 +156,50 @@ require('blink.cmp').setup({
 > [!WARNING]
 > Since `blink.cmp` uses a dot (`.`) as a separator for queries, and our i18n keys are also separated by dots, it's recommended to avoid entering dots when searching for keys. For example, instead of typing `common.time.second`, you can type `commonseco` to fuzzy match the i18n key, then press `<c-y>` (or whatever shortcut you have set) to complete the selection.
 
+## 🔭 Telescope Integration
+
+A Telescope picker is also provided for users who prefer Telescope over fzf-lua.  
+It offers similar actions: copy key, copy current locale translation, jump to definition (current or default locale), choose locale then jump, and split/vsplit/tab open variants.
+
+Setup (lazy.nvim example):
+```lua
+{
+  'yelog/i18n.nvim',
+  dependencies = {
+    'nvim-telescope/telescope.nvim',
+  },
+  config = function()
+    require('i18n').setup({
+      locales = { 'en', 'zh' },
+      sources = { 'src/locales/{locales}.json' },
+    })
+  end
+}
+```
+
+Keymap example:
+```lua
+vim.keymap.set("n", "<leader>ik", require("i18n").show_i18n_keys_with_telescope,
+  { desc = "Search i18n key (Telescope)" })
+```
+
+Actions (default mappings inside the picker):
+- <CR>: copy key
+- <C-y>: copy current locale translation
+- <C-j>: jump (current display locale first, fallback default locale)
+- <C-l>: choose locale then jump (secondary picker)
+- <C-x>: horizontal split jump
+- <C-v>: vertical split jump
+- <C-t>: tab jump  
+Press ? inside Telescope for standard help; these mappings are attached programmatically (they do not modify your global Telescope defaults).
+
+Preview panel:
+- Shows the key and all configured locales.
+- Marks current display locale with an asterisk (*).
+- Missing translations are shown as: <Missing translation>.
+
+If you also enabled the fzf integration you can keep both; each is independent.  
+You can reuse the same config.locales and sources; no additional setup is required.
 
 ## ⚙️ Configuration
 

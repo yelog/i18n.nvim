@@ -67,6 +67,10 @@ M.show_i18n_keys_with_fzf = function()
   return require('i18n.integration.fzf').show_i18n_keys_with_fzf()
 end
 
+M.show_i18n_keys_with_telescope = function()
+  return require('i18n.integration.telescope').show_i18n_keys_with_telescope()
+end
+
 M.i18n_definition_next_locale = function()
   return require('i18n.navigation').i18n_definition_next_locale()
 end
