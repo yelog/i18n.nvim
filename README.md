@@ -156,6 +156,53 @@ require('blink.cmp').setup({
 > [!WARNING]
 > Since `blink.cmp` uses a dot (`.`) as a separator for queries, and our i18n keys are also separated by dots, it's recommended to avoid entering dots when searching for keys. For example, instead of typing `common.time.second`, you can type `commonseco` to fuzzy match the i18n key, then press `<c-y>` (or whatever shortcut you have set) to complete the selection.
 
+## 🧩 nvim-cmp Integration
+
+A native `nvim-cmp` completion source is provided: `i18n.integration.cmp_source`.
+
+Features:
+- Provides i18n keys as completion items (label & inserted text are the key itself)
+- Context aware: only triggers inside the first string argument of your configured i18n function calls (derived from `config.options.func_pattern`)
+- Documentation shows translations for every configured locale; missing ones are marked `(missing)`
+- Lightweight: reuses already parsed in‑memory tables (no extra file IO during completion)
+
+Basic setup (after installing `hrsh7th/nvim-cmp`):
+```lua
+local cmp = require('cmp')
+
+-- Register the i18n source (do this once, e.g. in your cmp config file)
+cmp.register_source('i18n', require('i18n.integration.cmp_source').new())
+
+cmp.setup({
+  sources = cmp.config.sources({
+    { name = 'i18n' },
+    -- other primary sources...
+  }, {
+    -- secondary sources...
+  }),
+})
+```
+
+Lazy.nvim snippet:
+```lua
+{
+  'yelog/i18n.nvim',
+  dependencies = {
+    'hrsh7th/nvim-cmp',
+  },
+  config = function()
+    require('i18n').setup({
+      locales = { 'en', 'zh' },
+      sources = { 'src/locales/{locales}.json' },
+    })
+  end
+}
+```
+
+Tips:
+- To make the source always active (not recommended), you could broaden `func_pattern`, but keeping precise patterns reduces noise.
+- Pair with fuzzy filtering of `nvim-cmp` for quick partial matches even across dotted segments.
+
 ## 🔭 Telescope Integration
 
 A Telescope picker is also provided for users who prefer Telescope over fzf-lua.  
