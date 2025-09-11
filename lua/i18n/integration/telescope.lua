@@ -271,8 +271,8 @@ function M.show_i18n_keys_with_telescope()
         end
       end
 
-      local function do_jump(open_variant)
-        local k = get_key()
+      local function do_jump(open_variant, explicit_key)
+        local k = explicit_key or get_key()
         if not k then return end
         local locales = get_locales()
         local cfg = ((config.options or {}).fzf or {}).jump or {}
@@ -281,9 +281,9 @@ function M.show_i18n_keys_with_telescope()
         local tried = false
         if prefer_cur and cur then
           tried = true
-          if jump_key(k, cur, open_variant or cfg.open_cmd_default or "edit") then
-            return
-          end
+            if jump_key(k, cur, open_variant or cfg.open_cmd_default or "edit") then
+              return
+            end
         end
         local def = locales[1]
         if def and (not tried or def ~= cur) then
@@ -311,11 +311,31 @@ function M.show_i18n_keys_with_telescope()
       -- Default <CR> copy key
       map({ "i", "n" }, "<CR>", wrap_close(act_copy_key))
       map({ "i", "n" }, "<C-y>", wrap_close(act_copy_translation))
-      map({ "i", "n" }, "<C-j>", function() do_jump("edit"); actions.close(prompt_bufnr) end)
+      map({ "i", "n" }, "<C-j>", function()
+        local k = get_key()
+        if not k then return end
+        actions.close(prompt_bufnr)
+        vim.schedule(function() do_jump("edit", k) end)
+      end)
       map({ "i", "n" }, "<C-l>", act_choose_locale)
-      map({ "i", "n" }, "<C-x>", function() do_jump("split"); actions.close(prompt_bufnr) end)
-      map({ "i", "n" }, "<C-v>", function() do_jump("vsplit"); actions.close(prompt_bufnr) end)
-      map({ "i", "n" }, "<C-t>", function() do_jump("tabedit"); actions.close(prompt_bufnr) end)
+      map({ "i", "n" }, "<C-x>", function()
+        local k = get_key()
+        if not k then return end
+        actions.close(prompt_bufnr)
+        vim.schedule(function() do_jump("split", k) end)
+      end)
+      map({ "i", "n" }, "<C-v>", function()
+        local k = get_key()
+        if not k then return end
+        actions.close(prompt_bufnr)
+        vim.schedule(function() do_jump("vsplit", k) end)
+      end)
+      map({ "i", "n" }, "<C-t>", function()
+        local k = get_key()
+        if not k then return end
+        actions.close(prompt_bufnr)
+        vim.schedule(function() do_jump("tabedit", k) end)
+      end)
 
       return true
     end
