@@ -304,7 +304,7 @@ function M.show_i18n_keys_with_telescope()
       local function wrap_close(fn)
         return function()
           fn()
-          -- For copy operations keep picker open; others close.
+          actions.close(prompt_bufnr)
         end
       end
 
