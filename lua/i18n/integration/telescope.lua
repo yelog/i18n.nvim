@@ -170,13 +170,45 @@ local function collect_keys(current_locale)
     table.insert(list, k)
   end
   table.sort(list)
+
+  -- 计算最长 key 的显示宽度（宽字符按 2 处理）
+  local function display_width(str)
+    if not str or str == "" then return 0 end
+    local w = 0
+    for ch in str:gmatch("[%z\1-\127\194-\244][\128-\191]*") do
+      if #ch > 1 then
+        w = w + 2
+      else
+        local b = ch:byte()
+        if b > 127 then
+          w = w + 2
+        else
+          w = w + 1
+        end
+      end
+    end
+    return w
+  end
+  local function pad_right(str, width)
+    local cur = display_width(str)
+    if cur >= width then return str end
+    return str .. string.rep(" ", width - cur)
+  end
+
+  local max_w = 0
+  for _, k in ipairs(list) do
+    local w = display_width(k)
+    if w > max_w then max_w = w end
+  end
+
   local entries = {}
   for _, key in ipairs(list) do
     local val = parser.get_translation(key, current_locale) or ""
+    local disp_key = pad_right(key, max_w)
     table.insert(entries, {
       key = key,
       value = key,
-      display = key .. "  │  " .. val,
+      display = string.format("%s │ %s", disp_key, val),
       ordinal = key .. " " .. val,
     })
   end
