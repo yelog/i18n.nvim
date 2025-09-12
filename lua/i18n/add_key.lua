@@ -142,6 +142,14 @@ local function append_js_ts_property(file, relative_key, value)
   local content = utils.read_file(file) or ""
   local encoded_value = vim.json.encode(value)
 
+  -- 渲染属性名：若为合法标识符则不加引号；否则使用单引号
+  local function render_prop_key(k)
+    if k:match("^[A-Za-z_$][A-Za-z0-9_$]*$") then
+      return k
+    end
+    return "'" .. k .. "'"
+  end
+
   -- 新文件：保持最简单结构（不去构造嵌套对象）
   if content == "" then
     local lines = {
@@ -291,10 +299,11 @@ local function append_js_ts_property(file, relative_key, value)
       end
     end
 
+    local key_rendered = render_prop_key(last_key)
     local prop_line =
       (needs_comma and "," or "") ..
       "\n" .. object_indent .. indent_unit ..
-      string.format('%q: %s', last_key, encoded_value)
+      string.format('%s: %s', key_rendered, encoded_value)
 
     local new_content = before .. prop_line .. "\n" .. object_indent .. after
     local ok = pcall(function()
@@ -323,8 +332,9 @@ local function append_js_ts_property(file, relative_key, value)
   if first_prop then
     indent = first_prop
   end
+  local key_rendered_root = render_prop_key(relative_key)
   local prop_line = (needs_comma and "," or "") .. "\n" ..
-      indent .. string.format('%q: %s', relative_key, encoded_value)
+      indent .. string.format('%s: %s', key_rendered_root, encoded_value)
   local new_content = before_root .. prop_line .. after_root
   local ok = pcall(function()
     local f = assert(io.open(file, "w"))
