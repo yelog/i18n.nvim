@@ -116,23 +116,44 @@ end
 
 -- 设置虚拟文本
 local function set_virtual_text(bufnr, line_num, col, text)
+  if not text or text == "" then return end
+  if not vim.api.nvim_buf_is_valid(bufnr) then return end
+  local line = vim.api.nvim_buf_get_lines(bufnr, line_num, line_num + 1, false)[1]
+  if not line then return end
+  -- extmark col 为 0-based，且不能超过行长度
+  local line_len = #line
+  local col0 = math.max(0, math.min((col or 0) - 1, line_len))
   local prefix = ""
   if config.options.show_origin ~= false then
     prefix = ": "
   end
-  vim.api.nvim_buf_set_extmark(bufnr, ns, line_num, col, {
+  local ok = pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, line_num, col0, {
     virt_text = { { prefix .. text, "Comment" } },
     virt_text_pos = "inline",
   })
+  if not ok then
+    -- 若仍失败（例如 col0 == 行长度且 inline 不允许），尝试行尾方式兜底
+    pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, line_num, 0, {
+      virt_text = { { " " .. prefix .. text, "Comment" } },
+      virt_text_pos = "eol",
+    })
+  end
 end
 
 -- 在翻译文件中行尾显示（默认语言）翻译
 local function set_eol_virtual_text(bufnr, line_num, text)
   if not text or text == "" then return end
-  vim.api.nvim_buf_set_extmark(bufnr, ns, line_num, 0, {
+  if not vim.api.nvim_buf_is_valid(bufnr) then return end
+  local line = vim.api.nvim_buf_get_lines(bufnr, line_num, line_num + 1, false)[1]
+  if not line then return end
+  local ok = pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, line_num, 0, {
     virt_text = { { " ← " .. text, "Comment" } },
     virt_text_pos = "eol",
   })
+  if not ok then
+    -- 兜底：忽略错误，防止抛出
+    return
+  end
 end
 
 -- 刷新缓冲区显示
@@ -231,10 +252,23 @@ M.refresh_buffer = function(bufnr)
             meta.col = (pos[2] or 0) + 1
           end
         else
-          -- 为没有 mark 的条目建立位置跟踪 extmark
-          local lnum = (meta.line or 1) - 1
-          local col = (meta.col or 1) - 1
-          local id = vim.api.nvim_buf_set_extmark(bufnr, keypos_ns, lnum, col, {})
+          -- 为没有 mark 的条目建立位置跟踪 extmark（加安全裁剪，避免 col 越界）
+          local total_lines = vim.api.nvim_buf_line_count(bufnr)
+          local lnum = (meta.line or 1)
+          if lnum < 1 then lnum = 1 end
+          if lnum > total_lines then lnum = total_lines end
+          local line_text = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1] or ""
+          local line_len = #line_text
+            -- meta.col 是 1-based
+          local col = (meta.col or 1)
+          if col < 1 then col = 1 end
+          if col - 1 > line_len then
+            -- 若超出行长，放在行尾（extmark col 允许等于行长表示 EOL 位置）
+            col = line_len + 1
+          end
+          local id = vim.api.nvim_buf_set_extmark(bufnr, keypos_ns, lnum - 1, col - 1, {})
+          meta.line = lnum
+          meta.col = col
           meta.mark_id = id
         end
       end

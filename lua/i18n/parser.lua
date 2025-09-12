@@ -100,7 +100,15 @@ local function parse_json(content)
       local s = l:find(pattern)
       if s then
         -- s 指向引号位置，列号取 key 第一个字符（引号后一位），1-based
-        return idx, s + 1
+        local col = s + 1
+        local len = #l
+        if len == 0 then
+          col = 1
+        elseif col > len then
+          col = len
+        end
+        if col < 1 then col = 1 end
+        return idx, col
       end
     end
     return 1, 1
@@ -114,6 +122,15 @@ local function parse_json(content)
       else
         flat[full_key] = v
         local line, col = find_line_and_col(k)
+        local ltxt = lines[line] or ""
+        local max_col = #ltxt
+        if max_col == 0 then
+          col = 1
+        elseif col > max_col then
+          col = max_col
+        elseif col < 1 then
+          col = 1
+        end
         line_map[full_key] = line
         col_map[full_key] = col
       end
