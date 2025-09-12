@@ -41,14 +41,16 @@ Designed to work across most project types (front-end, backend, mixed monorepos)
     </td>
   </tr>
   <tr>
-    <th>Add missing key</th>
-    <th></th>
+    <th>Add Missing Key</th>
+    <th>Show Other Translations</th>
   </tr>
   <tr>
     <td>
       <img src="https://github.com/user-attachments/assets/78e7e0ce-034f-4e7b-a73b-c0a0aa56c1c1" />
     </td>
-    <td></td>
+    <td>
+      <img src="https://github.com/user-attachments/assets/d2fbb08e-75c6-4190-b656-449aabc5fe13" />
+    </td>
   </tr>
 </table>
 
