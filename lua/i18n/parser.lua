@@ -74,9 +74,11 @@ local function parse_json(content)
     return nil
   end
 
-  local lines = {}
-  for l in content:gmatch("[^\r\n]+") do
-    table.insert(lines, l)
+  -- 使用 vim.split 保留空行（原实现用 gmatch 会丢失空行，导致行号偏移）
+  local lines = vim.split(content, "\n", true)
+  -- 去掉行尾 \r 以兼容 CRLF
+  for i, l in ipairs(lines) do
+    lines[i] = l:gsub("\r$", "")
   end
 
   local function guess_line(seg)
