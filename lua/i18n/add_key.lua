@@ -135,6 +135,149 @@ local function ensure_dir(path)
   end
 end
 
+-- 尝试在原 JSON 文本中“就地”追加一个嵌套 key，而不整体重排。
+-- 仅当所有中间层级对象已存在时执行；否则返回 false 交由旧逻辑（重排写回）。
+-- 返回: appended:boolean, new_content_or_nil
+local function append_json_key(file, relative_key, value)
+  if not utils.file_exists(file) then
+    return false
+  end
+  local content = utils.read_file(file) or ""
+  if content == "" then
+    return false
+  end
+  -- 找到第一个 '{'
+  local root_open = content:find("{")
+  if not root_open then
+    return false
+  end
+
+  -- 匹配根对象闭合
+  local function find_matching_brace(start_pos)
+    local depth = 0
+    for i = start_pos, #content do
+      local ch = content:sub(i, i)
+      if ch == "{" then
+        depth = depth + 1
+      elseif ch == "}" then
+        depth = depth - 1
+        if depth == 0 then
+          return i
+        end
+      end
+    end
+    return nil
+  end
+  local root_close = find_matching_brace(root_open)
+  if not root_close then
+    return false
+  end
+
+  local parts = {}
+  for seg in relative_key:gmatch("[^%.]+") do
+    table.insert(parts, seg)
+  end
+  if #parts == 0 then
+    return false
+  end
+
+  -- 遍历中间层级，定位到目标父对象（最后一个层级的上一级）
+  local target_start = root_open
+  local target_end = root_close
+  for i = 1, #parts - 1 do
+    local seg = parts[i]
+    local region = content:sub(target_start, target_end)
+    -- 在当前对象区域内查找 "seg": { （允许前后空白）
+    -- 使用最左匹配（假设 key 唯一）
+    local rel_idx = region:find('"' .. vim.pesc(seg) .. '"%s*:%s*{')
+    if not rel_idx then
+      -- 若任一父层级不存在，放弃“就地追加”
+      return false
+    end
+    -- 找到该子对象 '{' 的绝对位置
+    local abs_brace = target_start + rel_idx - 1
+    local brace_pos = content:find("{", abs_brace)
+    if not brace_pos then
+      return false
+    end
+    local sub_close = find_matching_brace(brace_pos)
+    if not sub_close then
+      return false
+    end
+    target_start = brace_pos
+    target_end = sub_close
+  end
+
+  -- 现在 target_start/target_end 包含父对象（或根对象，如果只有一层）
+  local last_key = parts[#parts]
+
+  -- 判断该 key 是否已存在
+  local parent_region = content:sub(target_start, target_end)
+  if parent_region:find('"' .. vim.pesc(last_key) .. '"%s*:') then
+    -- 已存在，无需追加
+    return true, content
+  end
+
+  local before_parent_close = content:sub(1, target_end - 1)
+  local after_parent_close = content:sub(target_end)
+
+  -- 计算父对象缩进
+  -- 父对象起始 '{' 所在行
+  local line_start = before_parent_close:match("()\n[^\n]*$") or 1
+  local line_text = before_parent_close:sub(line_start)
+  local parent_indent = line_text:match("^(%s*)") or ""
+
+  -- 取内部内容
+  local inner = content:sub(target_start + 1, target_end - 1)
+  local object_empty = inner:match("^%s*$") ~= nil
+
+  -- 推测子属性缩进：找第一条属性
+  local indent_unit = "  "
+  local first_prop_indent = inner:match("\n(%s*)[\"']%w")
+  if first_prop_indent and #first_prop_indent > #parent_indent then
+    indent_unit = first_prop_indent:sub(#parent_indent + 1)
+  end
+
+  -- 是否需要给现有最后一个属性补逗号
+  local needs_comma = false
+  if not object_empty then
+    local trimmed_inner = inner:gsub("%s+$", "")
+    local last_char = trimmed_inner:sub(-1)
+    if last_char ~= "," then
+      needs_comma = true
+    end
+  end
+
+  local encoded_value = vim.json.encode(value)
+
+  -- 构造插入片段：避免重复增加额外的 } ，同时消除多余空行
+  -- 先去掉父对象关闭前可能存在的多余空白/换行
+  local trimmed_before = before_parent_close:gsub("%s*$", "")
+  before_parent_close = trimmed_before
+
+  local insertion_prefix = ""
+  if not object_empty and needs_comma then
+    insertion_prefix = ","
+  end
+
+  local insertion = insertion_prefix ..
+      "\n" .. parent_indent .. indent_unit ..
+      string.format('"%s": %s', last_key, encoded_value)
+
+  -- 直接复用原有的 '}' （after_parent_close 以 '}' 开头），不再手动添加新 '}'
+  local new_content = before_parent_close .. insertion .. "\n" .. parent_indent .. after_parent_close
+
+  local ok = pcall(function()
+    local f = assert(io.open(file, "w"))
+    f:write(new_content)
+    f:close()
+  end)
+  if not ok then
+    return false
+  end
+  return true, new_content
+end
+
 -- 追加 JS/TS 属性：
 -- 优先尝试根据相对 key 的层级定位已存在的嵌套对象并在对象内部添加末级键；
 -- 若任一中间层级对象不存在，则退化为在根导出对象上以扁平 "a.b.c": "Value" 形式追加。
@@ -351,23 +494,37 @@ local function write_key_to_files(key, values, filemap)
       local ext = file:match("%.([%w_]+)$") or ""
       if ext == "json" then
         ensure_dir(file)
-        local tbl = read_json_table(file)
-        assign_nested(tbl, key:gsub("^" .. vim.pesc(data.prefix), ""), values[locale])
-        local encoded = encode_pretty(tbl)
-        local ok_write = pcall(function()
-          local f = assert(io.open(file, "w"))
-          f:write(encoded)
-          f:close()
-        end)
-        if not ok_write then
-          vim.notify("[i18n] Failed writing file: " .. file, vim.log.levels.ERROR)
-        else
-          -- 若该文件已在缓冲区打开，保持缓冲区与磁盘同步，避免列越界（extmark col 超出当前缓冲行长度）
+        local rel = key:gsub("^" .. vim.pesc(data.prefix), "")
+        -- 优先尝试原地追加（不重排），失败再回退到旧的重排写入
+        local appended, newc = append_json_key(file, rel, values[locale])
+        if appended and newc then
+          -- 同步缓冲区
           local bufnr = vim.fn.bufnr(file)
           if bufnr ~= -1 and vim.api.nvim_buf_is_loaded(bufnr) then
-            local lines = vim.split(encoded, '\n', true)
+            local lines = vim.split(newc, '\n', true)
             vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
           end
+        elseif appended and not newc then
+          -- 已存在 key，忽略
+        else
+          -- 回退：解析+重排（仅在无法原地插入时才发生）
+            local tbl = read_json_table(file)
+            assign_nested(tbl, rel, values[locale])
+            local encoded = encode_pretty(tbl)
+            local ok_write = pcall(function()
+              local f = assert(io.open(file, "w"))
+              f:write(encoded)
+              f:close()
+            end)
+            if not ok_write then
+              vim.notify("[i18n] Failed writing file: " .. file, vim.log.levels.ERROR)
+            else
+              local bufnr = vim.fn.bufnr(file)
+              if bufnr ~= -1 and vim.api.nvim_buf_is_loaded(bufnr) then
+                local lines = vim.split(encoded, '\n', true)
+                vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
+              end
+            end
         end
       elseif ext == "yml" or ext == "yaml" then
         vim.notify("[i18n] YAML write not yet supported (skipped): " .. file, vim.log.levels.WARN)
