@@ -187,9 +187,9 @@ require('blink.cmp').setup({
 > [!WARNING]
 > Since `blink.cmp` uses a dot (`.`) as a separator for queries, and our i18n keys are also separated by dots, it's recommended to avoid entering dots when searching for keys. For example, instead of typing `common.time.second`, you can type `commonseco` to fuzzy match the i18n key, then press `<c-y>` (or whatever shortcut you have set) to complete the selection.
 
-## 🧩 nvim-cmp Integration
+## 🧩 nvim-cmp Integration (Experimental)
 
-A native `nvim-cmp` completion source is provided: `i18n.integration.cmp_source`.
+Status: Experimental (testing phase). Prefer the blink.cmp integration for the most stable and polished experience. A native `nvim-cmp` completion source is still available: `i18n.integration.cmp_source` (interface may change).
 
 Features:
 - Provides i18n keys as completion items (label & inserted text are the key itself)
