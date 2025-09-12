@@ -42,6 +42,10 @@ M.setup = function(opts)
     require('i18n.navigation').i18n_definition_next_locale()
   end, { desc = "Jump to same i18n key in next locale file" })
 
+  vim.api.nvim_create_user_command('I18nAddKey', function()
+    require('i18n.add_key').add_key_interactive()
+  end, { desc = "Interactively add a missing i18n key across locales" })
+
   -- 更新外部可访问的 options 引用
   M.options = config.options
 end

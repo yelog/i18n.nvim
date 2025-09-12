@@ -125,6 +125,37 @@ Commands:
 - 📝 :**I18nToggleLocaleFileEol**
   Toggles showing end-of-line translations in locale source files (per i18n key line). When enabled, each key line in a locale translation file shows the current display locale’s translation as EOL virtual text; disabling hides these overlays (useful for focused editing or cleaner diffs).
 
+### 🆕 Interactive: Add Missing i18n Key
+
+You can interactively add a missing i18n key (across all configured locales) with a floating window editor.
+
+Command:
+:I18nAddKey
+
+Usage:
+1. Place the cursor on an i18n function call whose key does NOT yet exist (e.g. t("system.new_feature.title")).
+2. Run :I18nAddKey
+3. A popup appears with one input line per configured locale (first = default).
+4. Type the default locale translation; untouched other locale lines auto-fill with the same text.
+5. Use <Tab> / <S-Tab> to move between locale input lines.
+6. Press <Enter> to write the values into their respective locale files (creating missing nested objects automatically for JSON).
+7. Press <Esc> or <C-c> to cancel without changes.
+
+Details:
+- Target files are chosen by matching the longest registered file prefix (from your config.sources prefix) against the key.
+- Currently JSON files are updated (YAML is ignored for writing if encountered, with a notification).
+- Files are created if missing, and keys are inserted in nested form (a.b.c builds { "a": { "b": { "c": "..." }}}).
+- After saving, translations are reloaded and inline displays refresh automatically.
+
+Example workflow:
+t("feature.welcome.message") -- key does not exist yet
+:I18nAddKey
+Enter default text: "Welcome!"
+Auto-filled other locales.
+Edit zh locale line to: "欢迎！"
+<Enter> to confirm.
+Now the key exists in all locale files.
+
 ## 🔌 blink.cmp Integration
 
 The plugin provides a blink.cmp source (`i18n.integration.blink_source`) that:
