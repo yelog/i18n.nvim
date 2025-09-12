@@ -135,6 +135,205 @@ local function ensure_dir(path)
   end
 end
 
+-- 追加 JS/TS 属性：
+-- 优先尝试根据相对 key 的层级定位已存在的嵌套对象并在对象内部添加末级键；
+-- 若任一中间层级对象不存在，则退化为在根导出对象上以扁平 "a.b.c": "Value" 形式追加。
+local function append_js_ts_property(file, relative_key, value)
+  local content = utils.read_file(file) or ""
+  local encoded_value = vim.json.encode(value)
+
+  -- 新文件：保持最简单结构（不去构造嵌套对象）
+  if content == "" then
+    local lines = {
+      "export default {",
+      string.format('  %q: %s', relative_key, encoded_value),
+      "}",
+      ""
+    }
+    local ok = pcall(function()
+      local f = assert(io.open(file, "w"))
+      f:write(table.concat(lines, "\n"))
+      f:close()
+    end)
+    return ok
+  end
+
+  -- 如果完整扁平 key 已存在则直接成功
+  if content:find('["\']' .. vim.pesc(relative_key) .. '["\']%s*:') then
+    return true
+  end
+
+  -- 定位导出对象起始 {
+  local brace_start_idx
+  do
+    local idx = content:find("export%s+default%s+{")
+    if idx then
+      brace_start_idx = content:find("{", idx)
+    end
+    if not brace_start_idx then
+      local idx2 = content:find("module%.exports%s*=%s*{")
+      if idx2 then
+        brace_start_idx = content:find("{", idx2)
+      end
+    end
+  end
+
+  if not brace_start_idx then
+    -- 未找到根对象，退化为在文件末尾新建
+    local appended = "\nexport default {\n  " ..
+        string.format('%q: %s', relative_key, encoded_value) .. "\n}\n"
+    local ok = pcall(function()
+      local f = assert(io.open(file, "a"))
+      f:write(appended)
+      f:close()
+    end)
+    return ok
+  end
+
+  -- 计算根对象闭合位置
+  local function find_matching_brace(start_pos)
+    local depth = 0
+    for i = start_pos, #content do
+      local ch = content:sub(i, i)
+      if ch == "{" then
+        depth = depth + 1
+      elseif ch == "}" then
+        depth = depth - 1
+        if depth == 0 then
+          return i
+        end
+      end
+    end
+    return nil
+  end
+  local root_end = find_matching_brace(brace_start_idx)
+  if not root_end then
+    vim.notify("[i18n] Failed to detect end of export object in: " .. file, vim.log.levels.WARN)
+    return false
+  end
+
+  -- 尝试嵌套插入
+  local parts = {}
+  for seg in relative_key:gmatch("[^%.]+") do table.insert(parts, seg) end
+
+  local can_nested = (#parts > 1)
+  local target_object_start = brace_start_idx
+  local target_object_end = root_end
+
+  if can_nested then
+    -- 在根对象内部搜索每一级中间对象
+    -- 范围限定在当前对象 (target_object_start, target_object_end)
+    for i = 1, #parts - 1 do
+      local segment = parts[i]
+      local pattern = '["\']?' .. vim.pesc(segment) .. '["\']?%s*:%s*{'
+      local search_region = content:sub(target_object_start, target_object_end)
+      local rel_start, rel_brace = search_region:find(pattern)
+      if not rel_brace then
+        can_nested = false
+        break
+      end
+      -- 绝对位置
+      local abs_brace = target_object_start + rel_brace - 1
+      -- 找该对象的结束 brace
+      local seg_end = find_matching_brace(abs_brace)
+      if not seg_end then
+        can_nested = false
+        break
+      end
+      -- 下一轮在该子对象内继续
+      target_object_start = abs_brace
+      target_object_end = seg_end
+    end
+  end
+
+  if can_nested then
+    local last_key = parts[#parts]
+    -- 检查该对象内是否已存在末级 key
+    local object_region = content:sub(target_object_start, target_object_end)
+    if object_region:find('["\']' .. vim.pesc(last_key) .. '["\']%s*:') then
+      return true
+    end
+
+    -- 计算插入点（在 target_object_end 之前）
+    local before = content:sub(1, target_object_end - 1)
+    local after = content:sub(target_object_end)
+
+    -- 判断对象是否为空（忽略空白和注释的简单判断：寻找除 { 空白 以外的字符）
+    local inner = content:sub(target_object_start + 1, target_object_end - 1)
+    local inner_trim = inner:gsub("%s+", "")
+    local object_empty = (inner_trim == "")
+
+    -- 获取缩进：取闭合大括号所在行的前导空白作为对象缩进
+    local line_start = before:match("()\n[^\n]*$") or 1
+    local prev_line = before:sub(line_start)
+    local object_indent = prev_line:match("^(%s*)") or ""
+    local indent_unit = "  "
+    -- 尝试找第一条属性的缩进
+    local first_prop_indent = inner:match("\n(%s*)[\"'%w_]+%s*:")
+    if first_prop_indent and #first_prop_indent > 0 then
+      indent_unit = first_prop_indent
+      -- 如果 first_prop_indent 比 object_indent 长，则 indent_unit = first_prop_indent - object_indent
+      if first_prop_indent:find("^" .. object_indent) then
+        local rest = first_prop_indent:sub(#object_indent + 1)
+        if #rest > 0 then
+          indent_unit = rest
+        end
+      end
+    end
+
+    local needs_comma = false
+    if not object_empty then
+      -- 找最后一个非空白字符（不含换行）在 before 对象末尾
+      local inner_before = inner:match("(.+)%s*$") or ""
+      local last_char = inner_before:match("([,%{%}])%s*$")
+      if last_char ~= "," then
+        needs_comma = true
+      end
+    end
+
+    local prop_line =
+      (needs_comma and "," or "") ..
+      "\n" .. object_indent .. indent_unit ..
+      string.format('%q: %s', last_key, encoded_value)
+
+    local new_content = before .. prop_line .. "\n" .. object_indent .. after
+    local ok = pcall(function()
+      local f = assert(io.open(file, "w"))
+      f:write(new_content)
+      f:close()
+    end)
+    return ok
+  end
+
+  -- 退化：根级扁平追加（与原实现一致）
+  local insert_pos -- 根对象闭合前位置
+  insert_pos = root_end
+  local before_root = content:sub(1, insert_pos - 1)
+  local after_root = content:sub(insert_pos)
+  local line_before_block = before_root:match("([^\n]*)$")
+  local needs_comma = false
+  if line_before_block then
+    local trimmed = line_before_block:gsub("%s+$", "")
+    if trimmed ~= "" and not trimmed:match(",$") and not trimmed:match("{%s*$") then
+      needs_comma = true
+    end
+  end
+  local indent = "  "
+  local first_prop = before_root:match("{%s*\n(%s+)[\"'%w_]")
+  if first_prop then
+    indent = first_prop
+  end
+  local prop_line = (needs_comma and "," or "") .. "\n" ..
+      indent .. string.format('%q: %s', relative_key, encoded_value)
+  local new_content = before_root .. prop_line .. after_root
+  local ok = pcall(function()
+    local f = assert(io.open(file, "w"))
+    f:write(new_content)
+    f:close()
+  end)
+  return ok
+end
+
 local function write_key_to_files(key, values, filemap)
   for locale, data in pairs(filemap) do
     local file = data.file
@@ -152,9 +351,34 @@ local function write_key_to_files(key, values, filemap)
         end)
         if not ok_write then
           vim.notify("[i18n] Failed writing file: " .. file, vim.log.levels.ERROR)
+        else
+          -- 若该文件已在缓冲区打开，保持缓冲区与磁盘同步，避免列越界（extmark col 超出当前缓冲行长度）
+          local bufnr = vim.fn.bufnr(file)
+          if bufnr ~= -1 and vim.api.nvim_buf_is_loaded(bufnr) then
+            local lines = vim.split(encoded, '\n', true)
+            vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
+          end
         end
       elseif ext == "yml" or ext == "yaml" then
         vim.notify("[i18n] YAML write not yet supported (skipped): " .. file, vim.log.levels.WARN)
+      elseif ext == "js" or ext == "ts" then
+        ensure_dir(file)
+        local rel = key:gsub("^" .. vim.pesc(data.prefix), "")
+        local ok_js = append_js_ts_property(file, rel, values[locale])
+        if not ok_js then
+          vim.notify("[i18n] Failed updating JS/TS file: " .. file, vim.log.levels.ERROR)
+        else
+          vim.notify("[i18n] Updated JS/TS: " .. file, vim.log.levels.DEBUG)
+          -- 同步已加载缓冲区内容，避免 parser 行列与缓冲区长度不一致导致 extmark col 越界
+          local bufnr = vim.fn.bufnr(file)
+          if bufnr ~= -1 and vim.api.nvim_buf_is_loaded(bufnr) then
+            local newc = utils.read_file(file)
+            if newc then
+              local lines = vim.split(newc, '\n', true)
+              vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
+            end
+          end
+        end
       else
         vim.notify("[i18n] Unsupported target file type for automatic insertion: " .. file, vim.log.levels.WARN)
       end
