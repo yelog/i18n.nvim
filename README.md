@@ -38,7 +38,17 @@ Designed to work across most project types (front-end, backend, mixed monorepos)
     </td>
     <td>
       <img src="https://github.com/user-attachments/assets/2ebc7189-f892-4f23-a1d9-b46042bca2da" />
-  ns  </td>
+    </td>
+  </tr>
+  <tr>
+    <th>Add missing key</th>
+    <th></th>
+  </tr>
+  <tr>
+    <td>
+      <img src="https://github.com/user-attachments/assets/78e7e0ce-034f-4e7b-a73b-c0a0aa56c1c1" />
+    </td>
+    <td></td>
   </tr>
 </table>
 
