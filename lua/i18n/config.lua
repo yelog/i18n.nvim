@@ -27,7 +27,7 @@ M.defaults = {
   },
   navigation = {},
   -- Filetypes/extensions to scan when collecting key usages in project source files
-  func_type = { 'vue', 'typescript' },
+  func_file_type = { 'vue', 'typescript' },
   fzf = {
     -- Action key mappings (multiple trigger keys allowed as multiple strings in the array)
     -- Use Vim-style notation (<cr>, <c-j>, etc.); they will be converted to keys recognized by fzf

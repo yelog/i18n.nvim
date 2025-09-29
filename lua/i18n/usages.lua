@@ -37,7 +37,7 @@ local function schedule_display_refresh()
 end
 
 local function normalize_globs()
-  local types = config.options and config.options.func_type or {}
+  local types = config.options and config.options.func_file_type or {}
   if type(types) ~= 'table' then return {} end
   local collected = {}
   local seen = {}
