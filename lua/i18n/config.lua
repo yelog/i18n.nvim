@@ -28,8 +28,13 @@ M.defaults = {
     "src/locales/{locales}.json",
   },
   navigation = {},
+  popup = {
+    -- Popup provider used when choosing between multiple usage locations
+    -- Available values: 'vim_ui', 'telescope', 'fzf-lua', 'snacks'
+    type = 'vim_ui',
+  },
   -- Filetypes/extensions to scan when collecting key usages in project source files
-  func_file_type = { 'vue', 'typescript' },
+  func_type = { 'vue', 'typescript' },
   fzf = {
     -- Action key mappings (multiple trigger keys allowed as multiple strings in the array)
     -- Use Vim-style notation (<cr>, <c-j>, etc.); they will be converted to keys recognized by fzf

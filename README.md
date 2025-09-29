@@ -312,6 +312,7 @@ Common options (all optional when a project file is present):
   * table: `{ pattern = "pattern", prefix = "optional.prefix." }`
 - func_pattern: array of Lua patterns to locate i18n function usages in source files
 - func_type: filetype or glob list scanned for usage counts (defaults to `{ 'vue', 'typescript' }`)
+- popup.type: picker shown when a key has multiple usages (`vim_ui` | `telescope` | `fzf-lua` | `snacks`, default `vim_ui`)
 - show_translation / show_origin: control inline rendering behavior
 - show_locale_file_eol_usage: toggle usage badges in locale buffers (default `true`)
 - filetypes / ft: restrict which filetypes are processed
@@ -364,9 +365,11 @@ Line numbers are best-effort for JSON/YAML/.properties (heuristic matching); JS/
 Usage Scanner
 Track how often each i18n key appears in your source tree. The plugin scans files matching `func_type` (defaults to `{ 'vue', 'typescript' }`) using `rg --files` and falls back to `git ls-files --exclude-standard`, so `.gitignore`d paths are skipped automatically.
 
-- Locale buffers append `· no usages` or `· N usages` to the translation line so you can see coverage at a glance.
-- `:I18nKeyUsages` or `require('i18n').i18n_key_usages()` inspects the key under the cursor: one usage jumps immediately; multiple usages open a `vim.ui.select` picker.
+- Locale buffers append `← [No usages]` / `← [2 usages]` style badges before the translation so coverage and text remain visually distinct.
+- `:I18nKeyUsages` or `require('i18n').i18n_key_usages()` inspects the key under the cursor: one usage jumps immediately; multiple usages open your configured picker.
 - Saved buffers matching `func_type` are rescanned automatically; trigger a full rescan with `require('i18n').refresh_usages()` if you tweak configuration on the fly.
+- Set `popup = { type = 'telescope' | 'fzf-lua' | 'snacks' | 'vim_ui' }` to reuse your preferred picker when resolving multiple usages.
+- Adjust highlight links via `:hi I18nUsageLabel`, `:hi I18nUsageTranslation`, and `:hi I18nUsageSeparator` if you prefer different colors.
 
 Example keymap that tries the i18n usage jump first, then falls back to LSP references (mirrors the `gd` example above):
 ```lua
@@ -428,6 +431,7 @@ return {
     "%$t%(['\"]([^'\"]+)['\"]",
   },
   func_type = { 'vue', 'typescript' },
+  popup = { type = 'vim_ui' },
   show_translation = true,
   show_origin = false,
 }

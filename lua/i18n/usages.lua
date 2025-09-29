@@ -37,7 +37,8 @@ local function schedule_display_refresh()
 end
 
 local function normalize_globs()
-  local types = config.options and config.options.func_file_type or {}
+  local opts = config.options or {}
+  local types = opts.func_type or opts.func_file_type or {}
   if type(types) ~= 'table' then return {} end
   local collected = {}
   local seen = {}
@@ -224,6 +225,147 @@ local function sort_usages(list)
   end)
 end
 
+local function format_usage_entry(item)
+  if not item then return '' end
+  local rel = item.file and vim.fn.fnamemodify(item.file, ':.') or '<unknown>'
+  local preview = item.preview or ''
+  return string.format('%s:%d:%d %s', rel, item.line or 1, item.col or 1, preview)
+end
+
+local function select_with_vim_ui(entries, key, callback)
+  vim.ui.select(entries, {
+    prompt = string.format('Usages of %s', key),
+    format_item = format_usage_entry,
+  }, callback)
+  return true
+end
+
+local function select_with_telescope(entries, key, callback)
+  local ok, pickers = pcall(require, 'telescope.pickers')
+  if not ok then return false end
+  local finders = require('telescope.finders')
+  local conf = require('telescope.config').values
+  local actions = require('telescope.actions')
+  local action_state = require('telescope.actions.state')
+
+  pickers.new({}, {
+    prompt_title = string.format('Usages of %s', key),
+    finder = finders.new_table {
+      results = entries,
+      entry_maker = function(item)
+        return {
+          value = item,
+          display = format_usage_entry(item),
+          ordinal = string.format('%s %s %s', item.key or key, item.file or '', item.preview or ''),
+        }
+      end,
+    },
+    sorter = conf.generic_sorter({}),
+    attach_mappings = function(prompt_bufnr, map)
+      local function select_current()
+        local selection = action_state.get_selected_entry()
+        if not selection then return end
+        actions.close(prompt_bufnr)
+        vim.schedule(function()
+          callback(selection.value)
+        end)
+      end
+      map('i', '<CR>', select_current)
+      map('n', '<CR>', select_current)
+      return true
+    end,
+  }):find()
+  return true
+end
+
+local function select_with_fzflua(entries, key, callback)
+  local ok, fzf = pcall(require, 'fzf-lua')
+  if not ok then return false end
+  local lines = {}
+  local lookup = {}
+  for idx, item in ipairs(entries) do
+    local display = format_usage_entry(item)
+    local line = string.format('%03d %s', idx, display)
+    lookup[line] = item
+    table.insert(lines, line)
+  end
+  fzf.fzf_exec(lines, {
+    prompt = string.format('Usages > %s > ', key),
+    actions = {
+      ['default'] = function(selected)
+        if not selected or not selected[1] then return end
+        local result = lookup[selected[1]]
+        if result then callback(result) end
+      end,
+    },
+  })
+  return true
+end
+
+local function select_with_snacks(entries, key, callback)
+  local picker
+  local ok_picker, module = pcall(require, 'snacks.picker')
+  if ok_picker then
+    picker = module
+  else
+    local ok_snacks, snacks = pcall(require, 'snacks')
+    if ok_snacks then
+      picker = snacks.picker
+    end
+  end
+  if not picker then return false end
+
+  local select_fn = picker.select or picker.pick or picker.start
+  if type(select_fn) ~= 'function' then return false end
+
+  local items = {}
+  for _, entry in ipairs(entries) do
+    table.insert(items, {
+      text = format_usage_entry(entry),
+      value = entry,
+    })
+  end
+
+  local ok_call, err = pcall(select_fn, picker, {
+    title = string.format('Usages of %s', key),
+    items = items,
+    action = function(item)
+      local value = item and (item.value or item)
+      if value then callback(value) end
+    end,
+  })
+  if not ok_call then
+    vim.notify('[i18n] snacks picker failed: ' .. tostring(err), vim.log.levels.WARN)
+    return false
+  end
+  return true
+end
+
+local popup_handlers = {
+  vim_ui = select_with_vim_ui,
+  telescope = select_with_telescope,
+  ['fzf-lua'] = select_with_fzflua,
+  snacks = select_with_snacks,
+}
+
+local function pick_usage(entries, key, callback)
+  local popup_cfg = (config.options and config.options.popup) or {}
+  local preferred = popup_cfg.type or 'vim_ui'
+  local order = { preferred }
+  if preferred ~= 'vim_ui' then
+    table.insert(order, 'vim_ui')
+  end
+  for _, typ in ipairs(order) do
+    local handler = popup_handlers[typ]
+    if handler then
+      local ok = handler(entries, key, callback)
+      if ok then return end
+    end
+  end
+  -- fallback
+  select_with_vim_ui(entries, key, callback)
+end
+
 local function remove_file_entries(file)
   local tracked = M.file_index[file]
   if not tracked then return end
@@ -387,13 +529,7 @@ function M.jump_to_usage(key)
     return open_location(entries[1], key)
   end
 
-  vim.ui.select(entries, {
-    prompt = string.format('Usages of %s', key),
-    format_item = function(item)
-      local rel = vim.fn.fnamemodify(item.file, ':.')
-      return string.format('%s:%d:%d %s', rel, item.line or 1, item.col or 1, item.preview or '')
-    end,
-  }, function(choice)
+  pick_usage(entries, key, function(choice)
     if choice then
       open_location(choice, key)
     end
@@ -453,4 +589,3 @@ function M.setup()
 end
 
 return M
-
