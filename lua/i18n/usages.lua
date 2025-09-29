@@ -1,0 +1,456 @@
+local M = {}
+
+local config = require('i18n.config')
+local parser = require('i18n.parser')
+
+local ft_glob_map = {
+  vue = { '*.vue' },
+  typescript = { '*.ts', '*.tsx' },
+  typescriptreact = { '*.tsx' },
+  javascript = { '*.js', '*.jsx', '*.mjs', '*.cjs' },
+  javascriptreact = { '*.jsx', '*.tsx' },
+  tsx = { '*.tsx' },
+  ts = { '*.ts' },
+  jsx = { '*.jsx' },
+  js = { '*.js', '*.jsx', '*.mjs', '*.cjs' },
+  lua = { '*.lua' },
+  svelte = { '*.svelte' },
+  python = { '*.py' },
+}
+
+M.usages = {}
+M.file_index = {}
+M._setup_done = false
+
+local pending_refresh = false
+
+local function schedule_display_refresh()
+  if pending_refresh then return end
+  pending_refresh = true
+  vim.schedule(function()
+    pending_refresh = false
+    local ok, display = pcall(require, 'i18n.display')
+    if ok and display and display.refresh then
+      pcall(display.refresh)
+    end
+  end)
+end
+
+local function normalize_globs()
+  local types = config.options and config.options.func_type or {}
+  if type(types) ~= 'table' then return {} end
+  local collected = {}
+  local seen = {}
+  for _, entry in ipairs(types) do
+    if type(entry) == 'string' then
+      local key = entry:lower()
+      local globs = ft_glob_map[key]
+      if not globs then
+        if key:find('[%*%?%[]') then
+          globs = { key }
+        elseif key:sub(1, 2) == '*.' then
+          globs = { key }
+        elseif key:sub(1, 1) == '.' then
+          globs = { '*' .. key }
+        elseif key:sub(1, 2) == '**' then
+          globs = { key }
+        else
+          globs = { '*.' .. key }
+        end
+      end
+      for _, glob in ipairs(globs) do
+        if not seen[glob] then
+          seen[glob] = true
+          table.insert(collected, glob)
+        end
+      end
+    end
+  end
+  return collected
+end
+
+local function build_command(args)
+  local escaped = {}
+  for _, arg in ipairs(args) do
+    table.insert(escaped, vim.fn.shellescape(arg))
+  end
+  return table.concat(escaped, ' ')
+end
+
+local function collect_files()
+  local globs = normalize_globs()
+  if #globs == 0 then return {} end
+
+  local files = {}
+  local seen = {}
+  local cwd = vim.loop.cwd()
+
+  if vim.fn.executable('rg') == 1 then
+    local cmd_args = { 'rg', '--files' }
+    for _, glob in ipairs(globs) do
+      table.insert(cmd_args, '-g')
+      table.insert(cmd_args, glob)
+    end
+    local output = vim.fn.systemlist(build_command(cmd_args))
+    if vim.v.shell_error == 0 and type(output) == 'table' then
+      for _, path in ipairs(output) do
+        if type(path) == 'string' and path ~= '' then
+          local abs = path
+          if not abs:match('^%a:[\\/]') and not abs:match('^/') then
+            abs = cwd .. '/' .. abs
+          end
+          abs = vim.loop.fs_realpath(abs) or abs
+          if not seen[abs] then
+            seen[abs] = true
+            table.insert(files, abs)
+          end
+        end
+      end
+    end
+  end
+
+  if #files == 0 then
+    local git_args = { 'git', 'ls-files', '--cached', '--others', '--exclude-standard' }
+    local git_output = vim.fn.systemlist(build_command(git_args))
+    if vim.v.shell_error == 0 and type(git_output) == 'table' then
+      local regexes = {}
+      for _, glob in ipairs(globs) do
+        table.insert(regexes, vim.fn.glob2regpat(glob))
+      end
+      for _, rel in ipairs(git_output) do
+        if type(rel) == 'string' and rel ~= '' then
+          for _, reg in ipairs(regexes) do
+            if vim.fn.match(rel, reg) ~= -1 then
+              local abs = cwd .. '/' .. rel
+              abs = vim.loop.fs_realpath(abs) or abs
+              if not seen[abs] then
+                seen[abs] = true
+                table.insert(files, abs)
+              end
+              break
+            end
+          end
+        end
+      end
+    end
+  end
+
+  return files
+end
+
+local function extract_keys(line, patterns)
+  local matches = {}
+  local occupied = {}
+  if type(patterns) ~= 'table' then return matches end
+  for _, pattern in ipairs(patterns) do
+    if type(pattern) == 'string' then
+      local pos = 1
+      while pos <= #line do
+        local s, e, key = line:find(pattern, pos)
+        if not s then break end
+        local overlap = false
+        for idx = s, e do
+          if occupied[idx] then
+            overlap = true
+            break
+          end
+        end
+        if not overlap and key and key ~= '' then
+          local key_start = line:find(key, s, true) or s
+          table.insert(matches, {
+            key = key,
+            match_start = s,
+            match_end = e,
+            key_start = key_start,
+          })
+          for idx = s, e do
+            occupied[idx] = true
+          end
+        end
+        pos = e + 1
+      end
+    end
+  end
+  return matches
+end
+
+local function collect_file_usages(file)
+  if vim.fn.filereadable(file) ~= 1 then
+    return {}, {}
+  end
+  local ok, lines = pcall(vim.fn.readfile, file)
+  if not ok or type(lines) ~= 'table' then
+    return {}, {}
+  end
+
+  local entries = {}
+  local key_set = {}
+  local patterns = config.options and config.options.func_pattern or {}
+
+  for idx, raw in ipairs(lines) do
+    if type(raw) == 'string' then
+      local line = raw:gsub('\r$', '')
+      local found = extract_keys(line, patterns)
+      for _, match in ipairs(found) do
+        local preview = line
+        preview = preview:gsub('^%s+', ''):gsub('%s+$', '')
+        if #preview > 120 then
+          preview = preview:sub(1, 117) .. '...'
+        end
+        table.insert(entries, {
+          key = match.key,
+          file = file,
+          line = idx,
+          col = match.key_start or match.match_start,
+          preview = preview,
+        })
+        key_set[match.key] = true
+      end
+    end
+  end
+
+  return entries, key_set
+end
+
+local function sort_usages(list)
+  table.sort(list, function(a, b)
+    if a.file ~= b.file then
+      return a.file < b.file
+    end
+    if (a.line or 0) ~= (b.line or 0) then
+      return (a.line or 0) < (b.line or 0)
+    end
+    return (a.col or 0) < (b.col or 0)
+  end)
+end
+
+local function remove_file_entries(file)
+  local tracked = M.file_index[file]
+  if not tracked then return end
+  for key in pairs(tracked) do
+    local list = M.usages[key]
+    if list then
+      local filtered = {}
+      for _, entry in ipairs(list) do
+        if entry.file ~= file then
+          table.insert(filtered, entry)
+        end
+      end
+      if #filtered == 0 then
+        M.usages[key] = nil
+      else
+        M.usages[key] = filtered
+      end
+    end
+  end
+  M.file_index[file] = nil
+end
+
+local function record_entries(file, entries, key_set)
+  if #entries == 0 then
+    return
+  end
+  for _, entry in ipairs(entries) do
+    M.usages[entry.key] = M.usages[entry.key] or {}
+    table.insert(M.usages[entry.key], entry)
+  end
+  for key, _ in pairs(key_set) do
+    sort_usages(M.usages[key])
+  end
+  M.file_index[file] = key_set
+end
+
+local function open_location(entry, key)
+  if not entry or not entry.file then return false end
+  if vim.fn.filereadable(entry.file) ~= 1 then
+    vim.notify(string.format('[i18n] Usage file not found: %s', entry.file), vim.log.levels.WARN)
+    return false
+  end
+  local open_cmd = (config.options.navigation and config.options.navigation.open_cmd) or 'edit'
+  if open_cmd ~= 'edit' then
+    vim.cmd(string.format('%s %s', open_cmd, vim.fn.fnameescape(entry.file)))
+  else
+    vim.cmd('edit ' .. vim.fn.fnameescape(entry.file))
+  end
+  local line = entry.line or 1
+  local col = math.max((entry.col or 1) - 1, 0)
+  vim.api.nvim_win_set_cursor(0, { line, col })
+  vim.api.nvim_echo({ { string.format('[i18n] usage: %s', key), 'Comment' } }, false, {})
+  return true
+end
+
+local function detect_key_at_cursor()
+  local buf_path = vim.api.nvim_buf_get_name(0)
+  if buf_path == '' then return nil end
+  local abs_path = vim.loop.fs_realpath(buf_path) or buf_path
+  local cursor_line = vim.api.nvim_win_get_cursor(0)[1]
+  local locales = (config.options and config.options.locales) or {}
+  if #locales == 0 then return nil end
+
+  local meta_per_locale = parser.meta or {}
+
+  for _, locale in ipairs(locales) do
+    local meta_tbl = meta_per_locale[locale]
+    if meta_tbl then
+      for key, meta in pairs(meta_tbl) do
+        if meta.file == abs_path and meta.line == cursor_line then
+          return key
+        end
+      end
+    end
+  end
+
+  local candidate
+  local best_diff
+  for _, locale in ipairs(locales) do
+    local meta_tbl = meta_per_locale[locale]
+    if meta_tbl then
+      for key, meta in pairs(meta_tbl) do
+        if meta.file == abs_path and meta.line and meta.line <= cursor_line then
+          local diff = cursor_line - meta.line
+          if not best_diff or diff < best_diff then
+            best_diff = diff
+            candidate = key
+          end
+        end
+      end
+    end
+  end
+
+  return candidate
+end
+
+function M.scan_file(path)
+  if not path or path == '' then return end
+  local abs = vim.loop.fs_realpath(path) or path
+  remove_file_entries(abs)
+  local entries, key_set = collect_file_usages(abs)
+  if next(key_set) then
+    record_entries(abs, entries, key_set)
+  else
+    M.file_index[abs] = nil
+  end
+end
+
+function M.scan_project_usages()
+  M.usages = {}
+  M.file_index = {}
+  local files = collect_files()
+  for _, file in ipairs(files) do
+    local entries, key_set = collect_file_usages(file)
+    if next(key_set) then
+      record_entries(file, entries, key_set)
+    end
+  end
+  schedule_display_refresh()
+  return files
+end
+
+function M.refresh()
+  local files = M.scan_project_usages()
+  return files
+end
+
+function M.get_usages_for_key(key)
+  if not key then return {} end
+  return M.usages[key] or {}
+end
+
+function M.get_usage_count(key)
+  local list = M.get_usages_for_key(key)
+  return #list
+end
+
+function M.get_usage_label(key)
+  if not key then return nil end
+  local count = M.get_usage_count(key)
+  if count == 0 then
+    return 'no usages'
+  elseif count == 1 then
+    return '1 usage'
+  else
+    return string.format('%d usages', count)
+  end
+end
+
+function M.jump_to_usage(key)
+  if not key or key == '' then
+    vim.notify('[i18n] No i18n key detected under cursor', vim.log.levels.WARN)
+    return false
+  end
+  local entries = M.get_usages_for_key(key)
+  if #entries == 0 then
+    vim.notify(string.format('[i18n] No usages found for %s', key), vim.log.levels.INFO)
+    return false
+  end
+  if #entries == 1 then
+    return open_location(entries[1], key)
+  end
+
+  vim.ui.select(entries, {
+    prompt = string.format('Usages of %s', key),
+    format_item = function(item)
+      local rel = vim.fn.fnamemodify(item.file, ':.')
+      return string.format('%s:%d:%d %s', rel, item.line or 1, item.col or 1, item.preview or '')
+    end,
+  }, function(choice)
+    if choice then
+      open_location(choice, key)
+    end
+  end)
+  return true
+end
+
+function M.jump_under_cursor()
+  local key = detect_key_at_cursor()
+  if not key then
+    vim.notify('[i18n] No i18n key detected under cursor', vim.log.levels.WARN)
+    return false
+  end
+  return M.jump_to_usage(key)
+end
+
+function M.remove_file(path)
+  if not path or path == '' then return end
+  local abs = vim.loop.fs_realpath(path) or path
+  remove_file_entries(abs)
+  schedule_display_refresh()
+end
+
+function M.setup()
+  if M._setup_done then return end
+  M._setup_done = true
+  local group = vim.api.nvim_create_augroup('I18nUsageScanner', { clear = true })
+  local patterns = normalize_globs()
+  if #patterns > 0 then
+    vim.api.nvim_create_autocmd('BufWritePost', {
+      group = group,
+      pattern = patterns,
+      callback = function(args)
+        if args and args.file and args.file ~= '' then
+          M.scan_file(args.file)
+          schedule_display_refresh()
+        end
+      end,
+      desc = 'Rescan i18n key usages after saving source file',
+    })
+
+    vim.api.nvim_create_autocmd('BufDelete', {
+      group = group,
+      pattern = patterns,
+      callback = function(args)
+        if args and args.file and args.file ~= '' then
+          M.remove_file(args.file)
+        end
+      end,
+      desc = 'Remove cached i18n usages when buffer is deleted',
+    })
+  end
+
+  vim.schedule(function()
+    M.scan_project_usages()
+  end)
+end
+
+return M
+

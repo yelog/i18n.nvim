@@ -2,6 +2,7 @@ local M = {}
 local config = require('i18n.config')
 local parser = require('i18n.parser')
 local display = require('i18n.display')
+local usages = require('i18n.usages')
 
 M.setup = function(opts)
   config.setup(opts)
@@ -9,12 +10,16 @@ M.setup = function(opts)
   -- 加载所有语言文件
   parser.load_translations()
 
+  -- 初始化源代码使用扫描
+  usages.setup()
+
   -- 设置显示模式
   display.setup_replace_mode()
 
   -- 创建用户命令
   vim.api.nvim_create_user_command('I18nReload', function()
     parser.load_translations()
+    usages.refresh()
     display.refresh()
   end, {})
 
@@ -45,6 +50,10 @@ M.setup = function(opts)
   vim.api.nvim_create_user_command('I18nAddKey', function()
     require('i18n.add_key').add_key_interactive()
   end, { desc = "Interactively add a missing i18n key across locales" })
+
+  vim.api.nvim_create_user_command('I18nKeyUsages', function()
+    usages.jump_under_cursor()
+  end, { desc = "Jump to usages of the i18n key under cursor" })
 
   -- 更新外部可访问的 options 引用
   M.options = config.options
@@ -77,6 +86,14 @@ end
 
 M.i18n_definition_next_locale = function()
   return require('i18n.navigation').i18n_definition_next_locale()
+end
+
+M.i18n_key_usages = function()
+  return usages.jump_under_cursor()
+end
+
+M.refresh_usages = function()
+  return usages.refresh()
 end
 
 -- 暴露当前配置（在 setup 后更新）

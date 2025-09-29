@@ -311,6 +311,7 @@ Common options (all optional when a project file is present):
   * string pattern e.g. `src/locales/{locales}.json`
   * table: `{ pattern = "pattern", prefix = "optional.prefix." }`
 - func_pattern: array of Lua patterns to locate i18n function usages in source files
+- func_type: filetype or glob list scanned for usage counts (defaults to `{ 'vue', 'typescript' }`)
 - show_translation / show_origin: control inline rendering behavior
 - filetypes / ft: restrict which filetypes are processed
 - diagnostic: controls missing translation diagnostics (see below):
@@ -359,6 +360,25 @@ navigation = {
 
 Line numbers are best-effort for JSON/YAML/.properties (heuristic matching); JS/TS uses Tree-sitter for higher accuracy.
 
+Usage Scanner
+Track how often each i18n key appears in your source tree. The plugin scans files matching `func_type` (defaults to `{ 'vue', 'typescript' }`) using `rg --files` and falls back to `git ls-files --exclude-standard`, so `.gitignore`d paths are skipped automatically.
+
+- Locale buffers append `· no usages` or `· N usages` to the translation line so you can see coverage at a glance.
+- `:I18nKeyUsages` or `require('i18n').i18n_key_usages()` inspects the key under the cursor: one usage jumps immediately; multiple usages open a `vim.ui.select` picker.
+- Saved buffers matching `func_type` are rescanned automatically; trigger a full rescan with `require('i18n').refresh_usages()` if you tweak configuration on the fly.
+
+Example keymap that tries the i18n usage jump first, then falls back to LSP references (mirrors the `gd` example above):
+```lua
+vim.keymap.set('n', 'gu', function()
+  if require('i18n').i18n_key_usages() then
+    return
+  end
+  vim.lsp.buf.references()
+end, { desc = 'i18n usages or LSP references' })
+```
+
+Extend `func_type` with additional globs if your project mixes in other languages (e.g. `{ 'vue', '*.svelte', 'javascriptreact' }`).
+
 Popup helper (returns boolean)
 You can show a transient popup of all translations for the key under cursor:
 Helper: require('i18n').show_popup() -> boolean
@@ -406,6 +426,7 @@ return {
     "t%(['\"]([^'\"]+)['\"]",
     "%$t%(['\"]([^'\"]+)['\"]",
   },
+  func_type = { 'vue', 'typescript' },
   show_translation = true,
   show_origin = false,
 }

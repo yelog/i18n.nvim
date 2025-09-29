@@ -1,6 +1,7 @@
 local M = {}
 local config = require('i18n.config')
 local parser = require('i18n.parser')
+local usages = require('i18n.usages')
 
 -- 命名空间
 local ns = vim.api.nvim_create_namespace('i18n_display')
@@ -280,13 +281,22 @@ M.refresh_buffer = function(bufnr)
       cleared = true
     end
 
-    if config.options.show_locale_file_eol_translation ~= false then
-      for full_key, meta in pairs(meta_tbl) do
-        if meta.file == abs_path then
+    local show_translation = config.options.show_locale_file_eol_translation ~= false
+    for full_key, meta in pairs(meta_tbl) do
+      if meta.file == abs_path then
+        local segments = {}
+        if show_translation then
           local value = parser.get_translation(full_key, default_locale)
-          if value then
-            set_eol_virtual_text(bufnr, (meta.line or 1) - 1, value)
+          if value and value ~= '' then
+            table.insert(segments, value)
           end
+        end
+        local usage_label = usages.get_usage_label(full_key)
+        if usage_label then
+          table.insert(segments, usage_label)
+        end
+        if #segments > 0 then
+          set_eol_virtual_text(bufnr, (meta.line or 1) - 1, table.concat(segments, ' · '))
         end
       end
     end
