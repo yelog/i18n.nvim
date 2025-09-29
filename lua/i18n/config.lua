@@ -5,6 +5,8 @@ M.defaults = {
   show_origin = false,
   -- Whether to display the default language translation as virtual text at the end of key lines in locale files
   show_locale_file_eol_translation = true,
+  -- Whether to append usage counts in locale files alongside translations
+  show_locale_file_eol_usage = true,
   diagnostics = true,
   -- func_pattern:
   -- Use frontier (%f) to ensure t / $t is not preceded by a letter, digit, or underscore,

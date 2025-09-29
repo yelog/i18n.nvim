@@ -313,6 +313,7 @@ Common options (all optional when a project file is present):
 - func_pattern: array of Lua patterns to locate i18n function usages in source files
 - func_type: filetype or glob list scanned for usage counts (defaults to `{ 'vue', 'typescript' }`)
 - show_translation / show_origin: control inline rendering behavior
+- show_locale_file_eol_usage: toggle usage badges in locale buffers (default `true`)
 - filetypes / ft: restrict which filetypes are processed
 - diagnostic: controls missing translation diagnostics (see below):
   * `false`: disable diagnostics entirely (existing ones are cleared)
