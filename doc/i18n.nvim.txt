@@ -100,7 +100,11 @@ OPTIONS TABLE                                          *i18n.nvim-options*
 Name              Type       Description
 locales           {string}   Ordered locales; first = default
 sources           {string|table} Patterns with placeholders {locales} {module}
-func_pattern      {string}  Lua patterns capturing key in () group 1
+func_pattern      {string|table}
+                          Function call names/specs; plain strings become
+                          safe matchers, tables expose advanced tuning.
+                          Raw Lua patterns remain supported (capture key in
+                          group 1 when supplying your own patterns).
 filetypes / ft    {string}  Restrict processing
 show_translation  boolean   Show translated value inline
 show_origin       boolean   Show original key inline (mutually influential)
@@ -113,6 +117,27 @@ Source item as table:  { pattern = "src/.../{locales}/{module}.ts",
 
 Placeholders: {locales} expands per locale; custom placeholders (e.g.
 {module}, {bu}) are collected by scanning directory parts.
+
+------------------------------------------------------------------------------
+FUNC PATTERN                                       *i18n.nvim-func-pattern*
+
+`func_pattern` controls how translation calls are detected.
+
+- Plain strings such as `'t'` or `'$t'` are treated as function names. The
+  plugin generates Lua patterns that tolerate optional whitespace before the
+  opening parenthesis and handle both single/double quoted first arguments.
+- Table entries unlock extra control, e.g.
+  `{ call = 'i18n.t', quotes = { "'", '"' }, allow_whitespace = false }`.
+  Supported keys include: `call`/`name`/`func`, `calls`/`aliases`, `quotes`,
+  `allow_whitespace`, `boundary`, `argument_pattern`, and
+  `capture_pattern`.
+- For maximum control you can still provide `pattern` / `patterns` containing
+  raw Lua patterns (legacy behaviour). Ensure the translation key remains the
+  first capture group. Strings containing Lua pattern tokens (`%`, `(`, `[`)
+  are treated as raw patterns automatically for backwards compatibility.
+
+If every entry resolves to an empty matcher set, the defaults `{ 't', '$t' }`
+are reinstated and a warning is shown.
 
 ==============================================================================
 PROJECT CONFIG FILE                                  *i18n.nvim-project*

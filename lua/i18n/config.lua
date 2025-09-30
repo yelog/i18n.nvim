@@ -1,5 +1,230 @@
 local M = {}
 
+local function trim(value)
+  if type(value) ~= 'string' then return value end
+  return (value:gsub('^%s*(.-)%s*$', '%1'))
+end
+
+local function escape_lua_pattern(str)
+  return (str:gsub('([%^%$%(%)%%%.%[%]%*%+%-%?])', '%%%1'))
+end
+
+local function escape_for_set(char)
+  if type(char) ~= 'string' or char == '' then
+    return char
+  end
+  local first = char:sub(1, 1)
+  if first == '-' then
+    return '%-'
+  elseif first == '^' then
+    return '%^'
+  elseif first == ']' then
+    return '%]'
+  elseif first == '%' then
+    return '%%'
+  end
+  return first
+end
+
+local function add_pattern(result, seen, pattern)
+  if type(pattern) ~= 'string' or pattern == '' then
+    return
+  end
+  if not seen[pattern] then
+    table.insert(result, pattern)
+    seen[pattern] = true
+  end
+end
+
+local function is_likely_lua_pattern(str)
+  return str:find('%%') or str:find('%(') or str:find('%)') or str:find('%[') or str:find('%]')
+end
+
+local function default_boundary_for_call(call)
+  if type(call) ~= 'string' or call == '' then return '' end
+  local first = call:sub(1, 1)
+  if not first or first == '' then return '' end
+  if first:match('[%w_]') then
+    return '%f[%w_]'
+  end
+  local escaped = escape_for_set(first)
+  return '%f[' .. escaped .. ']'
+end
+
+local function build_argument_patterns(spec)
+  if type(spec.argument_pattern) == 'string' then
+    return { spec.argument_pattern }
+  elseif type(spec.argument_pattern) == 'table' then
+    local patterns = {}
+    for _, arg_pat in ipairs(spec.argument_pattern) do
+      if type(arg_pat) == 'string' and arg_pat ~= '' then
+        table.insert(patterns, arg_pat)
+      end
+    end
+    if #patterns > 0 then
+      return patterns
+    end
+  end
+
+  local quotes = spec.quotes
+  if type(quotes) == 'string' then
+    quotes = { quotes }
+  elseif type(quotes) ~= 'table' or vim.tbl_isempty(quotes) then
+    quotes = { "'", '"' }
+  end
+
+  local patterns = {}
+  for _, quote in ipairs(quotes) do
+    if type(quote) == 'string' and quote ~= '' then
+      local q = quote:sub(1, 1)
+      if q and q ~= '' then
+        local literal_quote = escape_lua_pattern(q)
+        local class_quote = escape_for_set(q)
+        local capture = spec.capture_pattern
+        if type(capture) ~= 'string' or capture == '' then
+          capture = '([^' .. class_quote .. ']+)'
+        end
+        table.insert(patterns, '%(' .. literal_quote .. capture .. literal_quote)
+      end
+    end
+  end
+  return patterns
+end
+
+local function build_patterns_from_spec(spec)
+  if type(spec) ~= 'table' then return {} end
+
+  local call = spec.call or spec.name or spec.func or spec.function_name
+  call = trim(call)
+  if type(call) ~= 'string' or call == '' then
+    return {}
+  end
+
+  local boundary = spec.boundary
+  if boundary == false then
+    boundary = ''
+  elseif type(boundary) ~= 'string' or boundary == '' then
+    boundary = default_boundary_for_call(call)
+  end
+
+  local call_pattern = spec.call_pattern
+  if type(call_pattern) ~= 'string' or call_pattern == '' then
+    call_pattern = escape_lua_pattern(call)
+  end
+
+  local allow_ws = spec.allow_whitespace
+  if allow_ws == nil then allow_ws = true end
+  local space_pattern = allow_ws and '%s*' or ''
+
+  local argument_patterns = build_argument_patterns(spec)
+
+  local patterns = {}
+  for _, arg_pattern in ipairs(argument_patterns) do
+    table.insert(patterns, boundary .. call_pattern .. space_pattern .. arg_pattern)
+  end
+  return patterns
+end
+
+local function extract_calls(spec)
+  local calls = {}
+  local seen = {}
+
+  local function push(value)
+    value = trim(value)
+    if type(value) == 'string' and value ~= '' and not seen[value] then
+      seen[value] = true
+      table.insert(calls, value)
+    end
+  end
+
+  if type(spec.call) == 'string' then push(spec.call) end
+  if type(spec.name) == 'string' then push(spec.name) end
+  if type(spec.func) == 'string' then push(spec.func) end
+  if type(spec.function_name) == 'string' then push(spec.function_name) end
+
+  if type(spec.calls) == 'table' then
+    for _, call in ipairs(spec.calls) do push(call) end
+  end
+
+  if type(spec.aliases) == 'table' then
+    for _, call in ipairs(spec.aliases) do push(call) end
+  end
+
+  if #calls == 0 then
+    push(spec[1])
+  end
+
+  return calls
+end
+
+local function normalize_func_patterns(raw)
+  local normalized = {}
+  local seen = {}
+
+  local items = {}
+  if type(raw) == 'table' then
+    items = raw
+  end
+
+  for _, entry in ipairs(items) do
+    local entry_type = type(entry)
+    if entry_type == 'string' then
+      local value = trim(entry)
+      if value and value ~= '' then
+        if is_likely_lua_pattern(value) then
+          add_pattern(normalized, seen, value)
+        else
+          local generated = build_patterns_from_spec({ call = value })
+          for _, pat in ipairs(generated) do
+            add_pattern(normalized, seen, pat)
+          end
+        end
+      end
+    elseif entry_type == 'table' then
+      local direct_patterns = entry.patterns or entry.pattern
+      if type(direct_patterns) == 'string' then
+        add_pattern(normalized, seen, direct_patterns)
+      elseif type(direct_patterns) == 'table' then
+        for _, pat in ipairs(direct_patterns) do
+          add_pattern(normalized, seen, pat)
+        end
+      end
+
+      local calls = extract_calls(entry)
+      for _, call in ipairs(calls) do
+        local spec_copy = vim.tbl_deep_extend('force', {}, entry)
+        spec_copy.pattern = nil
+        spec_copy.patterns = nil
+        spec_copy.calls = nil
+        spec_copy.aliases = nil
+        spec_copy.call = call
+        spec_copy[1] = nil
+        spec_copy.name = nil
+        spec_copy.func = nil
+        spec_copy.function_name = nil
+
+        local generated = build_patterns_from_spec(spec_copy)
+        for _, pat in ipairs(generated) do
+          add_pattern(normalized, seen, pat)
+        end
+      end
+    end
+  end
+
+  if #normalized == 0 then
+    local fallback = { 't', '$t' }
+    for _, call in ipairs(fallback) do
+      local generated = build_patterns_from_spec({ call = call })
+      for _, pat in ipairs(generated) do
+        add_pattern(normalized, seen, pat)
+      end
+    end
+    vim.notify('[i18n] No func_pattern entries generated any patterns; falling back to defaults (t/$t).', vim.log.levels.WARN)
+  end
+
+  return normalized
+end
+
 M.defaults = {
   show_translation = true,
   show_origin = false,
@@ -8,20 +233,14 @@ M.defaults = {
   -- Whether to append usage counts in locale files alongside translations
   show_locale_file_eol_usage = true,
   diagnostics = true,
-  -- func_pattern:
-  -- Use frontier (%f) to ensure t / $t is not preceded by a letter, digit, or underscore,
-  -- avoiding false matches like split('/'), last("...
-  -- %f[^%w_]t means t is not preceded by %w_ (alphanumeric or underscore)
-  -- Examples that will match: t("a.b"), t('x'), (t("x"), $t("x")
-  -- Examples that won't match: split("..."), data.last("..."), my_t("x")
+  -- func_pattern accepts user-friendly function descriptors or raw Lua patterns.
+  -- Examples:
+  --   { 't', '$t' }
+  --   { { call = 'i18n.t' }, { call = '$t', quotes = { "'", '"' } } }
+  --   { { pattern = "%f[%w_]custom%(['\"]([^'\"]+)['\"]" } }
   func_pattern = {
-    -- Use frontier: %f[%w_]t ensures t is not preceded by letter/digit/underscore
-    -- Matches examples: t('a.b'), title: t("x.y"), (t("x")), {{$t('k')}}
-    -- Non-matching examples: split('x'), my_t('x'), last("x")
-    "%f[%w_]t%(['\"]([^'\"]+)['\"]",
-    -- $t form (preceded by any non-$ character or start of line); %f[%$] asserts the following char is $
-    -- and the previous char is not $
-    "%f[%$]%$t%(['\"]([^'\"]+)['\"]",
+    't',
+    '$t',
   },
   locales = { "en", "zh" },
   sources = {
@@ -115,6 +334,9 @@ M.setup = function(opts)
   local project_cfg = M.reload_project_config()
 
   M.options = vim.tbl_deep_extend('force', M.defaults, user_config, project_cfg or {})
+  local raw_func_spec = M.options.func_pattern
+  M.options._func_pattern_spec = raw_func_spec
+  M.options.func_pattern = normalize_func_patterns(raw_func_spec)
 
   return M.options
 end

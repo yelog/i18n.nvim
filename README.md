@@ -243,7 +243,9 @@ Lazy.nvim snippet:
 ```
 
 Tips:
-- To make the source always active (not recommended), you could broaden `func_pattern`, but keeping precise patterns reduces noise.
+- To make the source always active (not recommended), you could broaden
+  `func_pattern` (e.g. add more function names or custom matchers), but keeping
+  precise entries reduces noise.
 - Pair with fuzzy filtering of `nvim-cmp` for quick partial matches even across dotted segments.
 
 ## 🔭 Telescope Integration
@@ -310,7 +312,9 @@ Common options (all optional when a project file is present):
 - sources: array of file patterns or objects:
   * string pattern e.g. `src/locales/{locales}.json`
   * table: `{ pattern = "pattern", prefix = "optional.prefix." }`
-- func_pattern: array of Lua patterns to locate i18n function usages in source files
+- func_pattern: names/specs describing translation call sites. Plain strings
+  become safe matchers (e.g. `{ 't', '$t' }`); tables allow advanced control;
+  raw Lua patterns are still accepted for legacy setups.
 - func_type: filetype or glob list scanned for usage counts (defaults to `{ 'vue', 'typescript' }`)
 - popup.type: picker shown when a key has multiple usages (`vim_ui` | `telescope` | `fzf-lua` | `snacks`, default `vim_ui`)
 - show_translation / show_origin: control inline rendering behavior
@@ -320,6 +324,15 @@ Common options (all optional when a project file is present):
   * `false`: disable diagnostics entirely (existing ones are cleared)
   * `true`: enable diagnostics with default behavior (ERROR severity for missing translations)
   * `{ ... }` (table): enable diagnostics and pass the table as the 4th argument to `vim.diagnostic.set` (e.g. `{ underline = false, virtual_text = false }`)
+
+### `func_pattern` quick guide
+
+- Plain strings are treated as function names (`{ 't', '$t' }`). Optional
+  whitespace before the opening parenthesis is allowed.
+- Tables unlock additional control:
+  `{ call = 'i18n.t', quotes = { "'", '"' }, allow_whitespace = false }`.
+- You can still drop down to raw Lua patterns via the `pattern` / `patterns`
+  keys when you need something exotic (ensure the key stays in capture group 1).
 
 Diagnostics
 If `diagnostic` is enabled (true or a table), the plugin emits diagnostics for missing translations at the position of the i18n key. When a table is provided, it is forwarded verbatim to `vim.diagnostic.set(namespace, bufnr, diagnostics, opts)` allowing you to tune presentation (underline, virtual_text, signs, severity_sort, etc). Setting `diagnostic = false` both suppresses generation and clears previously shown diagnostics for the buffer.
@@ -427,8 +440,9 @@ return {
     { pattern = "src/locales/lang/{locales}/{module}.ts", prefix = "{module}." },
   },
   func_pattern = {
-    "t%(['\"]([^'\"]+)['\"]",
-    "%$t%(['\"]([^'\"]+)['\"]",
+    't',
+    '$t',
+    { call = 'i18n.t' },
   },
   func_type = { 'vue', 'typescript' },
   popup = { type = 'vim_ui' },
