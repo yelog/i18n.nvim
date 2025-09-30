@@ -315,7 +315,8 @@ Common options (all optional when a project file is present):
 - func_pattern: names/specs describing translation call sites. Plain strings
   become safe matchers (e.g. `{ 't', '$t' }`); tables allow advanced control;
   raw Lua patterns are still accepted for legacy setups.
-- func_type: filetype or glob list scanned for usage counts (defaults to `{ 'vue', 'typescript' }`)
+- func_type: filetype or glob list scanned for usage counts (defaults to
+  `{ 'vue', 'typescript', 'javascript', 'typescriptreact', 'javascriptreact', 'tsx', 'jsx', 'java' }`)
 - popup.type: picker shown when a key has multiple usages (`vim_ui` | `telescope` | `fzf-lua` | `snacks`, default `vim_ui`)
 - show_translation / show_origin: control inline rendering behavior
 - show_locale_file_eol_usage: toggle usage badges in locale buffers (default `true`)
@@ -331,6 +332,8 @@ Common options (all optional when a project file is present):
   whitespace before the opening parenthesis is allowed.
 - Tables unlock additional control:
   `{ call = 'i18n.t', quotes = { "'", '"' }, allow_whitespace = false }`.
+- Whitespace between the opening parenthesis and the first quote is accepted by
+  default; disable with `allow_arg_whitespace = false`.
 - You can still drop down to raw Lua patterns via the `pattern` / `patterns`
   keys when you need something exotic (ensure the key stays in capture group 1).
 
@@ -376,7 +379,11 @@ navigation = {
 Line numbers are best-effort for JSON/YAML/.properties (heuristic matching); JS/TS uses Tree-sitter for higher accuracy.
 
 Usage Scanner
-Track how often each i18n key appears in your source tree. The plugin scans files matching `func_type` (defaults to `{ 'vue', 'typescript' }`) using `rg --files` and falls back to `git ls-files --exclude-standard`, so `.gitignore`d paths are skipped automatically.
+Track how often each i18n key appears in your source tree. The plugin scans
+files matching `func_type` (defaults to `{ 'vue', 'typescript', 'javascript',
+  'typescriptreact', 'javascriptreact', 'tsx', 'jsx', 'java' }`) using
+`rg --files` and falls back to `git ls-files --exclude-standard`, so
+`.gitignore`d paths are skipped automatically.
 
 - Locale buffers append `← [No usages]` / `← [2 usages]` style badges before the translation so coverage and text remain visually distinct.
 - `:I18nKeyUsages` or `require('i18n').i18n_key_usages()` inspects the key under the cursor: one usage jumps immediately; multiple usages open your configured picker.

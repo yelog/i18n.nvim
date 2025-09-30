@@ -73,6 +73,10 @@ local function build_argument_patterns(spec)
     quotes = { "'", '"' }
   end
 
+  local allow_arg_ws = spec.allow_arg_whitespace
+  if allow_arg_ws == nil then allow_arg_ws = true end
+  local arg_space = allow_arg_ws and '%s*' or ''
+
   local patterns = {}
   for _, quote in ipairs(quotes) do
     if type(quote) == 'string' and quote ~= '' then
@@ -84,7 +88,7 @@ local function build_argument_patterns(spec)
         if type(capture) ~= 'string' or capture == '' then
           capture = '([^' .. class_quote .. ']+)'
         end
-        table.insert(patterns, '%(' .. literal_quote .. capture .. literal_quote)
+        table.insert(patterns, '%(' .. arg_space .. literal_quote .. capture .. literal_quote)
       end
     end
   end
@@ -253,7 +257,16 @@ M.defaults = {
     type = 'vim_ui',
   },
   -- Filetypes/extensions to scan when collecting key usages in project source files
-  func_type = { 'vue', 'typescript' },
+  func_type = {
+    'vue',
+    'typescript',
+    'javascript',
+    'typescriptreact',
+    'javascriptreact',
+    'tsx',
+    'jsx',
+    'java',
+  },
   fzf = {
     -- Action key mappings (multiple trigger keys allowed as multiple strings in the array)
     -- Use Vim-style notation (<cr>, <c-j>, etc.); they will be converted to keys recognized by fzf

@@ -105,7 +105,9 @@ func_pattern      {string|table}
                           safe matchers, tables expose advanced tuning.
                           Raw Lua patterns remain supported (capture key in
                           group 1 when supplying your own patterns).
-filetypes / ft    {string}  Restrict processing
+filetypes / ft    {string}  Restrict processing (defaults to
+                          { 'vue','typescript','javascript','typescriptreact',
+                          'javascriptreact','tsx','jsx','java' })
 show_translation  boolean   Show translated value inline
 show_origin       boolean   Show original key inline (mutually influential)
 diagnostic        bool|tbl  false disables; true default; table -> opts for
@@ -129,8 +131,10 @@ FUNC PATTERN                                       *i18n.nvim-func-pattern*
 - Table entries unlock extra control, e.g.
   `{ call = 'i18n.t', quotes = { "'", '"' }, allow_whitespace = false }`.
   Supported keys include: `call`/`name`/`func`, `calls`/`aliases`, `quotes`,
-  `allow_whitespace`, `boundary`, `argument_pattern`, and
-  `capture_pattern`.
+  `allow_whitespace`, `allow_arg_whitespace`, `boundary`, `argument_pattern`,
+  and `capture_pattern`.
+  By default whitespace between the opening parenthesis and the first quote is
+  accepted; disable this with `allow_arg_whitespace = false` when needed.
 - For maximum control you can still provide `pattern` / `patterns` containing
   raw Lua patterns (legacy behaviour). Ensure the translation key remains the
   first capture group. Strings containing Lua pattern tokens (`%`, `(`, `[`)
