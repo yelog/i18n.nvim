@@ -6,14 +6,39 @@ local utils = require('i18n.utils')
 
 -- 简单获取光标下的 i18n key（基于 func_pattern）
 local function get_key_under_cursor()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local cursor = vim.api.nvim_win_get_cursor(0)
   local line = vim.api.nvim_get_current_line()
-  local col = vim.api.nvim_win_get_cursor(0)[2] + 1
+  local col = cursor[2] + 1
+  local comment_checker = utils.make_comment_checker(bufnr)
   for _, pat in ipairs(config.options.func_pattern or {}) do
     local init = 1
     while true do
       local s, e, cap = line:find(pat, init)
       if not s then break end
-      if col >= s and col <= e then
+      local skip = false
+      if comment_checker then
+        local row0 = cursor[1] - 1
+        local match = line:sub(s, e)
+        local rel_key_s, rel_key_e = nil, nil
+        if cap and cap ~= '' then
+          rel_key_s, rel_key_e = match:find(cap, 1, true)
+        end
+        local key_start = rel_key_s and (s + rel_key_s - 1) or s
+        local key_end = rel_key_e and (s + rel_key_e - 1) or e
+        local check_cols = {
+          key_start - 1,
+          key_end - 1,
+          s - 1,
+        }
+        for _, col0 in ipairs(check_cols) do
+          if col0 and col0 >= 0 and comment_checker(row0, col0) then
+            skip = true
+            break
+          end
+        end
+      end
+      if not skip and col >= s and col <= e then
         return cap
       end
       init = e + 1

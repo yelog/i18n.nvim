@@ -202,7 +202,7 @@ Status: Experimental (testing phase). Prefer the blink.cmp integration for the m
 
 Features:
 - Provides i18n keys as completion items (label & inserted text are the key itself)
-- Context aware: only triggers inside the first string argument of your configured i18n function calls (derived from `config.options.func_pattern`)
+- Context aware: only triggers inside the first string argument of your configured i18n function calls (derived from `config.options.func_pattern`) and ignores matches inside comments
 - Documentation shows translations for every configured locale; missing ones are marked `(missing)`
 - Lightweight: reuses already parsed in‑memory tables (no extra file IO during completion)
 

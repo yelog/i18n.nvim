@@ -2,6 +2,7 @@ local async = require "blink.cmp.lib.async"
 
 local config
 local i18n_items
+local utils_ok, utils = pcall(require, "i18n.utils")
 
 ---Include the trigger character when accepting a completion.
 ---@param context blink.cmp.Context
@@ -141,6 +142,17 @@ end
 -- 更重要的是实现 should_show_completion_items 方法
 function M:should_show_completion_items(ctx)
   local before = ctx.line:sub(1, ctx.cursor[2])
+
+  if utils_ok and utils and utils.make_comment_checker then
+    local ok_cursor, cursor = pcall(vim.api.nvim_win_get_cursor, 0)
+    if ok_cursor then
+      local bufnr = vim.api.nvim_get_current_buf()
+      local checker = utils.make_comment_checker(bufnr)
+      if checker and checker(cursor[1] - 1, cursor[2]) then
+        return false
+      end
+    end
+  end
 
   -- 基于 config.func_pattern 动态判断是否位于首个参数未闭合的引号中
   local ok_cfg, plugin_cfg = pcall(require, "i18n.config")

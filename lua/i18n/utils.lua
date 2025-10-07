@@ -96,4 +96,89 @@ M.fuzzy_filter = function(candidates, input, max_items)
   return out
 end
 
+-- 返回一个函数用于判断给定缓冲区坐标是否处于注释节点内。
+-- 若当前环境缺少 tree-sitter 或解析失败，则返回 nil。
+M.make_comment_checker = function(bufnr)
+  if not vim or not vim.treesitter or not vim.treesitter.get_parser then
+    return nil
+  end
+
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+
+  local ok_parser, parser = pcall(vim.treesitter.get_parser, bufnr)
+  if not ok_parser or not parser then
+    return nil
+  end
+
+  return function(row, col)
+    if row == nil or col == nil then return false end
+    if row < 0 or col < 0 then return false end
+
+    local ok_tree, trees = pcall(parser.parse, parser)
+    if not ok_tree or not trees or not trees[1] then
+      return false
+    end
+
+    local root = trees[1]:root()
+    if not root then return false end
+
+    local node = root:named_descendant_for_range(row, col, row, col)
+    if not node then
+      node = root:descendant_for_range(row, col, row, col)
+    end
+
+    while node do
+      local ntype = node:type()
+      if ntype and ntype:lower():find('comment') then
+        return true
+      end
+      node = node:parent()
+    end
+
+    return false
+  end
+end
+
+-- 基于原始文本内容构建注释检测函数，适用于未加载缓冲区的文件内容。
+M.make_comment_checker_from_content = function(content, language)
+  if not content or content == "" then return nil end
+  if not language or language == "" then return nil end
+  if not vim or not vim.treesitter or not vim.treesitter.get_string_parser then
+    return nil
+  end
+
+  local ok_parser, parser = pcall(vim.treesitter.get_string_parser, content, language)
+  if not ok_parser or not parser then
+    return nil
+  end
+
+  local ok_tree, trees = pcall(parser.parse, parser)
+  if not ok_tree or not trees or not trees[1] then
+    return nil
+  end
+
+  local root = trees[1]:root()
+  if not root then return nil end
+
+  return function(row, col)
+    if row == nil or col == nil then return false end
+    if row < 0 or col < 0 then return false end
+
+    local node = root:named_descendant_for_range(row, col, row, col)
+    if not node then
+      node = root:descendant_for_range(row, col, row, col)
+    end
+
+    while node do
+      local ntype = node:type()
+      if ntype and ntype:lower():find('comment') then
+        return true
+      end
+      node = node:parent()
+    end
+
+    return false
+  end
+end
+
 return M

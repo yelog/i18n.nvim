@@ -2,6 +2,7 @@ local M = {}
 local config = require('i18n.config')
 local parser = require('i18n.parser')
 local usages = require('i18n.usages')
+local utils = require('i18n.utils')
 
 -- 命名空间
 local ns = vim.api.nvim_create_namespace('i18n_display')
@@ -68,8 +69,7 @@ local function is_supported_ft(bufnr)
   return default[ft] == true
 end
 
--- 提取国际化键
-local function extract_i18n_keys(line, patterns)
+local function extract_i18n_keys(_, line_num, line, patterns, comment_checker)
   local keys = {}
   local occupied = {}
   for _, pattern in ipairs(patterns) do
@@ -95,15 +95,34 @@ local function extract_i18n_keys(line, patterns)
             key_start_pos = start_pos + rel_s - 1
             key_end_pos = start_pos + rel_e - 1
           end
-          table.insert(keys, {
-            key = key,
-            start_pos = start_pos,         -- 整个匹配开始
-            end_pos = end_pos,             -- 整个匹配结束
-            key_start_pos = key_start_pos, -- 仅 key（不含引号等）
-            key_end_pos = key_end_pos,
-          })
-          for i = start_pos, end_pos do
-            occupied[i] = true
+
+          local skip = false
+          if comment_checker and line_num then
+            local row0 = line_num - 1
+            local check_cols = {
+              (key_start_pos or start_pos) - 1,
+              (start_pos - 1),
+              (key_end_pos or end_pos) - 1,
+            }
+            for _, col0 in ipairs(check_cols) do
+              if col0 and col0 >= 0 and comment_checker(row0, col0) then
+                skip = true
+                break
+              end
+            end
+          end
+
+          if not skip then
+            table.insert(keys, {
+              key = key,
+              start_pos = start_pos,         -- 整个匹配开始
+              end_pos = end_pos,             -- 整个匹配结束
+              key_start_pos = key_start_pos, -- 仅 key（不含引号等）
+              key_end_pos = key_end_pos,
+            })
+            for i = start_pos, end_pos do
+              occupied[i] = true
+            end
           end
         end
         pos = end_pos + 1
@@ -320,8 +339,13 @@ M.refresh_buffer = function(bufnr)
     vim.api.nvim_buf_set_option(bufnr, 'conceallevel', 0)
   end
 
+  local comment_checker = nil
+  if not file_locale then
+    comment_checker = utils.make_comment_checker(bufnr)
+  end
+
   for line_num, line in ipairs(lines) do
-    local keys = extract_i18n_keys(line, patterns)
+    local keys = extract_i18n_keys(bufnr, line_num, line, patterns, comment_checker)
     -- vim.notify("keys: " .. vim.inspect(keys), vim.log.levels.DEBUG)
     for _, key_info in ipairs(keys) do
       local translation = parser.get_translation(key_info.key, default_locale)
@@ -382,8 +406,10 @@ end
 function M.get_key_under_cursor()
   local cursor = vim.api.nvim_win_get_cursor(0)
   local line = vim.api.nvim_get_current_line()
+  local bufnr = vim.api.nvim_get_current_buf()
   local patterns = config.options.func_pattern
-  local keys = extract_i18n_keys(line, patterns)
+  local comment_checker = utils.make_comment_checker(bufnr)
+  local keys = extract_i18n_keys(bufnr, cursor[1], line, patterns, comment_checker)
   local cur_col1 = cursor[2] + 1 -- 转为 1-based 列
   for _, key_info in ipairs(keys) do
     -- 仅允许在 key 及其包裹引号范围内触发（排除函数名 t( 及右括号位置）

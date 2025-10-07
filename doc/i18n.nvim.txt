@@ -140,6 +140,9 @@ FUNC PATTERN                                       *i18n.nvim-func-pattern*
   first capture group. Strings containing Lua pattern tokens (`%`, `(`, `[`)
   are treated as raw patterns automatically for backwards compatibility.
 
+All detected matches inside comment nodes are automatically ignored, ensuring
+commented examples do not trigger completion, diagnostics, or other helpers.
+
 If every entry resolves to an empty matcher set, the defaults `{ 't', '$t' }`
 are reinstated and a warning is shown.
 

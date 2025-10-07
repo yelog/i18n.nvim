@@ -2,6 +2,7 @@ local M = {}
 
 local config = require('i18n.config')
 local parser = require('i18n.parser')
+local utils = require('i18n.utils')
 
 local ft_glob_map = {
   vue = { '*.vue' },
@@ -16,6 +17,23 @@ local ft_glob_map = {
   lua = { '*.lua' },
   svelte = { '*.svelte' },
   python = { '*.py' },
+}
+
+local ft_to_ts = {
+  typescriptreact = 'tsx',
+  javascriptreact = 'javascript',
+  tsx = 'tsx',
+  jsx = 'jsx',
+  vue = 'vue',
+  svelte = 'svelte',
+  ['javascript.jsx'] = 'jsx',
+  ts = 'typescript',
+  js = 'javascript',
+  mjs = 'javascript',
+  cjs = 'javascript',
+  py = 'python',
+  java = 'java',
+  lua = 'lua',
 }
 
 M.usages = {}
@@ -188,24 +206,69 @@ local function collect_file_usages(file)
   local key_set = {}
   local patterns = config.options and config.options.func_pattern or {}
 
+  local comment_checker = nil
+  local bufnr = vim.fn.bufnr(file)
+  if bufnr ~= -1 and vim.api.nvim_buf_is_loaded(bufnr) then
+    comment_checker = utils.make_comment_checker(bufnr)
+  end
+
+  if not comment_checker and utils.make_comment_checker_from_content then
+    local ft = nil
+    local ok_ft, matched_ft = pcall(vim.filetype.match, { filename = file })
+    if ok_ft then
+      ft = matched_ft
+    end
+    if not ft or ft == '' then
+      local ext = vim.fn.fnamemodify(file, ':e')
+      if ext and ext ~= '' then
+        ft = ext
+      end
+    end
+    if ft and ft_to_ts[ft] then
+      ft = ft_to_ts[ft]
+    end
+    local lang = ft
+    if lang and lang ~= '' then
+      local content = table.concat(lines, '\n')
+      comment_checker = utils.make_comment_checker_from_content(content, lang)
+    end
+  end
+
   for idx, raw in ipairs(lines) do
     if type(raw) == 'string' then
       local line = raw:gsub('\r$', '')
       local found = extract_keys(line, patterns)
       for _, match in ipairs(found) do
-        local preview = line
-        preview = preview:gsub('^%s+', ''):gsub('%s+$', '')
-        if #preview > 120 then
-          preview = preview:sub(1, 117) .. '...'
+        local skip = false
+        if comment_checker then
+          local row0 = idx - 1
+          local positions = {
+            (match.key_start or match.match_start or 1) - 1,
+            (match.match_start or 1) - 1,
+            (match.match_end or 1) - 1,
+          }
+          for _, col0 in ipairs(positions) do
+            if col0 and col0 >= 0 and comment_checker(row0, col0) then
+              skip = true
+              break
+            end
+          end
         end
-        table.insert(entries, {
-          key = match.key,
-          file = file,
-          line = idx,
-          col = match.key_start or match.match_start,
-          preview = preview,
-        })
-        key_set[match.key] = true
+        if not skip then
+          local preview = line
+          preview = preview:gsub('^%s+', ''):gsub('%s+$', '')
+          if #preview > 120 then
+            preview = preview:sub(1, 117) .. '...'
+          end
+          table.insert(entries, {
+            key = match.key,
+            file = file,
+            line = idx,
+            col = match.key_start or match.match_start,
+            preview = preview,
+          })
+          key_set[match.key] = true
+        end
       end
     end
   end

@@ -7,6 +7,7 @@
 
 local parser_ok, parser = pcall(require, "i18n.parser")
 local config_ok, config = pcall(require, "i18n.config")
+local utils_ok, utils = pcall(require, "i18n.utils")
 
 local source = {}
 source.__index = source
@@ -127,6 +128,7 @@ function source:complete(params, callback)
   local current_line = ok_cursor and vim.api.nvim_get_current_line() or nil
   local before = nil
   local next_char = nil
+  local bufnr = params.context and params.context.bufnr or (ok_cursor and vim.api.nvim_get_current_buf())
 
   if current_line and cursor then
     local col = cursor[2]
@@ -140,6 +142,13 @@ function source:complete(params, callback)
     local col = params.context.cursor.col or params.context.cursor[2] or 0
     before = line:sub(1, col)
     next_char = line:sub(col + 1, col + 1)
+  end
+
+  if utils_ok and utils and bufnr and cursor and utils.make_comment_checker then
+    local comment_checker = utils.make_comment_checker(bufnr)
+    if comment_checker and comment_checker(cursor[1] - 1, cursor[2]) then
+      return callback({})
+    end
   end
 
   local before_with_next = before .. (next_char or "")
