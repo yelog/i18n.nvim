@@ -13,6 +13,10 @@ end
 
 -- 检查文件是否存在
 M.file_exists = function(filepath)
+  if type(vim) == 'table' and vim.loop and vim.loop.fs_stat then
+    local stat = vim.loop.fs_stat(filepath)
+    if stat then return true end
+  end
   local file = io.open(filepath, "r")
   if file then
     file:close()

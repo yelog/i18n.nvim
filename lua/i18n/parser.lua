@@ -393,8 +393,11 @@ local function scan_vars(pattern, vars, idx, cb)
   if ext_pattern then
     ext = ext_pattern
   else
-    -- 其次用 after 匹配 .ext 结尾
-    ext = after:match("%.([%w_]+)$")
+    -- 其次用 after 匹配 .ext 结尾，但仅在后续不再包含占位符时才视为文件
+    local has_next_placeholder = after:find('{', 1, true)
+    if not has_next_placeholder then
+      ext = after:match("%.([%w_]+)$")
+    end
   end
   if ext then
     ext = "." .. ext
