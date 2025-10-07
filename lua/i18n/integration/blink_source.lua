@@ -6,14 +6,22 @@ local i18n_items
 ---Include the trigger character when accepting a completion.
 ---@param context blink.cmp.Context
 local function transform(items, context)
+  local replace_len = context._i18n_prefix_len or 0
   return vim.tbl_map(function(entry)
+    local start_col
+    if replace_len > 0 then
+      start_col = context.cursor[2] - replace_len + 1
+    else
+      start_col = context.bounds.start_col
+    end
+    if start_col < 1 then start_col = 1 end
     return vim.tbl_deep_extend("force", entry, {
       kind = require("blink.cmp.types").CompletionItemKind.Keyword,
       textEdit = {
         range = {
           start = {
             line = context.cursor[1] - 1,
-            character = context.bounds.start_col - 1,
+            character = start_col - 1,
           },
           ["end"] = {
             line = context.cursor[1] - 1,
@@ -168,6 +176,7 @@ function M:get_completions(context, callback)
 
   local before = context.line:sub(1, context.cursor[2])
   local prefix = before:match("['\"]([^'\"]*)$")
+  context._i18n_prefix_len = prefix and #prefix or 0
 
   local items = i18n_items
   if prefix and prefix ~= "" then
