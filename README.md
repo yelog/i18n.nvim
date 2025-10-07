@@ -196,9 +196,7 @@ require('blink.cmp').setup({
 })
 ```
 
-## 🧩 nvim-cmp Integration (Experimental)
-
-Status: Experimental (testing phase). Prefer the blink.cmp integration for the most stable and polished experience. A native `nvim-cmp` completion source is still available: `i18n.integration.cmp_source` (interface may change).
+## 🧩 nvim-cmp Integration
 
 Features:
 - Provides i18n keys as completion items (label & inserted text are the key itself)
