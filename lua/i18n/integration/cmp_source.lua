@@ -31,28 +31,21 @@ local function collect_keys()
 end
 
 -- Determine if cursor is currently in a context where completion should trigger
-local function in_i18n_context(line, byte_col)
+local function in_i18n_context(before, before_with_next)
   if not config_ok then return false end
   local opts = config.options or config.defaults or {}
   local pats = opts.func_pattern
-  -- byte_col 可能是 0 / 1 基，双策略
-  local before_a = line:sub(1, byte_col)
-  local before_b = line:sub(1, byte_col + 1)
+  before = before or ""
+  before_with_next = before_with_next or before
 
   local function match_patterns(before)
     if type(pats) ~= "table" then return false end
     for _, pat in ipairs(pats) do
       if type(pat) == "string" then
-        local pos = pat:find("%(", 1, true)
-        if pos then
-          local prefix = pat:sub(1, pos - 1)
-          local raw_prefix = prefix
-            :gsub("%%(%W)", "%1")
-            :gsub("%%%%", "%%")
-            :gsub("%%f%[[^%]]+%]", "")
-          local esc = vim.pesc(raw_prefix)
-          local dyn = esc .. "%s*%(%s*['\"][^'\"]*$"
-          if before:match(dyn) then
+        local detection, replaced = pat:gsub("(['\"])%b()%1$", "%1[^%1]*$")
+        if replaced > 0 then
+          local ok, matched = pcall(string.match, before, detection)
+          if ok and matched then
             return true
           end
         end
@@ -61,7 +54,7 @@ local function in_i18n_context(line, byte_col)
     return false
   end
 
-  if match_patterns(before_a) or match_patterns(before_b) then
+  if match_patterns(before) or match_patterns(before_with_next) then
     return true
   end
 
@@ -73,13 +66,13 @@ local function in_i18n_context(line, byte_col)
     "[%.:]%$t%s*%(%s*['\"][^'\"]*$",
   }
   for _, f in ipairs(generic_forms) do
-    if before_a:match(f) or before_b:match(f) then
+    if before:match(f) or before_with_next:match(f) then
       return true
     end
   end
 
   -- 更强力回溯：向后找最近的未闭合引号，并判断其前 40 个字符里是否存在 t( / $t(
-  local scan = before_b
+  local scan = before_with_next
   local qpos = scan:reverse():find("['\"]")
   if qpos then
     local abs_q = #scan - qpos + 1
@@ -113,8 +106,15 @@ end
 
 -- Optional trigger characters (improve responsiveness after typing a dot)
 function source:get_trigger_characters()
-  -- 增加引号触发，使得输入 t(' 立即弹出补全，而无需再输入首字符
-  return { ".", "_", "'", '"' }
+  -- 覆盖常见分隔符与字母数字，确保在逐字输入时也会重新触发补全
+  if not self._trigger_chars then
+    local chars = { ".", "_", "'", '"' }
+    for c in ('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-'):gmatch('.') do
+      table.insert(chars, c)
+    end
+    self._trigger_chars = chars
+  end
+  return self._trigger_chars
 end
 
 -- Perform completion
@@ -123,17 +123,34 @@ function source:complete(params, callback)
     return callback({})
   end
 
-  local line = params.context.cursor_line or params.context.line or ""
-  local col = params.context.cursor.col or params.context.cursor[2] or 0
+  local ok_cursor, cursor = pcall(vim.api.nvim_win_get_cursor, 0)
+  local current_line = ok_cursor and vim.api.nvim_get_current_line() or nil
+  local before = nil
+  local next_char = nil
+
+  if current_line and cursor then
+    local col = cursor[2]
+    before = current_line:sub(1, col)
+    next_char = current_line:sub(col + 1, col + 1)
+  end
+
+  -- fall back to context data when direct buffer reads aren't available
+  if not before then
+    local line = params.context.cursor_line or params.context.line or ""
+    local col = params.context.cursor.col or params.context.cursor[2] or 0
+    before = line:sub(1, col)
+    next_char = line:sub(col + 1, col + 1)
+  end
+
+  local before_with_next = before .. (next_char or "")
+  local relaxed_ok = in_i18n_context(before, before_with_next)
 
   -- 进入字符串第一字符时（quote 后光标立即触发）可能没有匹配到模式，放宽一次检测：
-  local relaxed_ok = in_i18n_context(line, col)
   if not relaxed_ok then
     -- 如果上一字符是引号，且前面 80 字符存在 t( / $t( 结构，则放行
-    local prev_char = line:sub(col, col)
+    local prev_char = before:sub(-1)
     if prev_char == "'" or prev_char == '"' then
-      local zone_start = math.max(1, col - 80)
-      local zone = line:sub(zone_start, col)
+      local zone = before:sub(-80)
       if zone:match("t%s*%(") or zone:match("%$t%s*%(") then
         relaxed_ok = true
       end
