@@ -319,7 +319,7 @@ function M.show_i18n_keys_with_fzf()
   end
 
   if #display_list == 0 then
-    vim.notify("[i18n] 没有可用的 i18n key", vim.log.levels.WARN)
+    vim.notify("[i18n] No available i18n key", vim.log.levels.WARN)
     return
   end
   fzf.fzf_exec(display_list, {
