@@ -295,7 +295,235 @@ local function format_usage_entry(item)
   return string.format('%s:%d:%d %s', rel, item.line or 1, item.col or 1, preview)
 end
 
+local devicons_ok, devicons = pcall(require, 'nvim-web-devicons')
+local list_icon_ns = vim.api.nvim_create_namespace('I18nUsageListIcons')
+local native_preview_ns = vim.api.nvim_create_namespace('I18nUsageNativePreview')
+local telescope_preview_ns = vim.api.nvim_create_namespace('I18nUsageTelescopePreview')
+
+local function build_usage_display_items(entries)
+  local items = {}
+  local max_width = 0
+
+  for _, entry in ipairs(entries) do
+    local icon = ''
+    local icon_hl
+    if devicons_ok and entry.file then
+      local icon_val, hl = devicons.get_icon(entry.file, nil, { default = true })
+      if icon_val and icon_val ~= '' then
+        icon = icon_val .. ' '
+        icon_hl = hl
+      end
+    end
+    local rel = entry.file and vim.fn.fnamemodify(entry.file, ':.') or '<unknown>'
+    local display = string.format('%s%s:%d:%d: %s', icon, rel, entry.line or 1, entry.col or 1, entry.preview or '')
+    local width = vim.api.nvim_strwidth(display)
+    if width > max_width then
+      max_width = width
+    end
+    table.insert(items, {
+      value = entry,
+      display = display,
+      icon_hl = icon_hl,
+      icon_width = icon ~= '' and vim.api.nvim_strwidth(icon) or 0,
+    })
+  end
+
+  return items, max_width
+end
+
+local function slice_file_lines(file, target_line, window_height)
+  if vim.fn.filereadable(file or '') ~= 1 then
+    return nil, string.format('[i18n] 文件不存在: %s', file or '<unknown>'), 1
+  end
+  local ok, content = pcall(vim.fn.readfile, file)
+  if not ok or type(content) ~= 'table' then
+    return nil, string.format('[i18n] 无法读取文件: %s', file), 1
+  end
+  if #content == 0 then
+    content = { '' }
+  end
+  local total = #content
+  local line = math.max(math.min(target_line or 1, total), 1)
+  local padding = math.max(math.floor(window_height / 2), 3)
+  local start_line = math.max(line - padding, 1)
+  local end_line = math.min(total, start_line + window_height - 1)
+  start_line = math.max(1, math.min(start_line, end_line - window_height + 1))
+  local lines = {}
+  for i = start_line, end_line do
+    table.insert(lines, content[i])
+  end
+  local cursor_row = line - start_line + 1
+  return lines, nil, cursor_row
+end
+
+local function close_win_safely(win)
+  if win and vim.api.nvim_win_is_valid(win) then
+    pcall(vim.api.nvim_win_close, win, true)
+  end
+end
+
+local function close_buf_safely(buf)
+  if buf and vim.api.nvim_buf_is_valid(buf) then
+    pcall(vim.api.nvim_buf_delete, buf, { force = true })
+  end
+end
+
+local function select_with_native_popup(entries, key, callback)
+  local items, max_width = build_usage_display_items(entries)
+  if vim.tbl_isempty(items) then
+    return false
+  end
+
+  local max_height = math.max(6, math.floor(vim.o.lines * 0.6))
+  local height = math.min(#items, max_height)
+  local list_width = math.max(32, math.min(max_width + 4, math.floor(vim.o.columns * 0.45)))
+  local preview_width = math.max(40, math.floor(vim.o.columns * 0.50))
+  if list_width + preview_width + 6 > vim.o.columns then
+    preview_width = math.max(32, vim.o.columns - list_width - 6)
+  end
+  local total_width = list_width + preview_width + 2
+  local row = math.max(1, math.floor((vim.o.lines - height) / 2))
+  local col = math.max(0, math.floor((vim.o.columns - total_width) / 2))
+
+  local list_buf = vim.api.nvim_create_buf(false, true)
+  local preview_buf = vim.api.nvim_create_buf(false, true)
+  local list_win = vim.api.nvim_open_win(list_buf, true, {
+    relative = 'editor',
+    style = 'minimal',
+    border = 'rounded',
+    row = row,
+    col = col,
+    width = list_width,
+    height = height,
+    title = string.format(' Usages of %s ', key),
+  })
+  local preview_win = vim.api.nvim_open_win(preview_buf, false, {
+    relative = 'editor',
+    style = 'minimal',
+    border = 'rounded',
+    row = row,
+    col = col + list_width + 2,
+    width = preview_width,
+    height = height,
+    title = ' Preview ',
+  })
+
+  vim.bo[list_buf].buftype = 'nofile'
+  vim.bo[list_buf].bufhidden = 'wipe'
+  vim.bo[list_buf].swapfile = false
+  vim.bo[list_buf].modifiable = true
+  vim.wo[list_win].cursorline = true
+  vim.wo[list_win].wrap = false
+
+  vim.bo[preview_buf].buftype = 'nofile'
+  vim.bo[preview_buf].bufhidden = 'wipe'
+  vim.bo[preview_buf].swapfile = false
+  vim.bo[preview_buf].modifiable = false
+  vim.wo[preview_win].number = true
+  vim.wo[preview_win].relativenumber = false
+  vim.wo[preview_win].wrap = false
+
+  local lines = {}
+  for _, item in ipairs(items) do
+    table.insert(lines, item.display)
+  end
+  vim.api.nvim_buf_set_lines(list_buf, 0, -1, false, lines)
+  vim.bo[list_buf].modifiable = false
+  for idx, item in ipairs(items) do
+    if item.icon_hl and item.icon_width > 0 then
+      pcall(vim.api.nvim_buf_add_highlight, list_buf, list_icon_ns, item.icon_hl, idx - 1, 0, item.icon_width)
+    end
+  end
+
+  local current_index = 1
+
+  local function cleanup()
+    close_win_safely(list_win)
+    close_win_safely(preview_win)
+    close_buf_safely(list_buf)
+    close_buf_safely(preview_buf)
+  end
+
+  local function update_preview(index)
+    local item = items[index]
+    if not item then return end
+    local entry = item.value
+    vim.api.nvim_buf_set_option(preview_buf, 'modifiable', true)
+    vim.api.nvim_buf_clear_namespace(preview_buf, native_preview_ns, 0, -1)
+
+    local content, err_msg, cursor_row = slice_file_lines(entry.file, entry.line, height)
+    if err_msg then
+      content = { err_msg }
+    end
+
+    vim.api.nvim_buf_set_lines(preview_buf, 0, -1, false, content)
+    if not err_msg and cursor_row then
+      local row_index = math.max(cursor_row - 1, 0)
+      vim.api.nvim_buf_add_highlight(preview_buf, native_preview_ns, 'Visual', row_index, 0, -1)
+      pcall(vim.api.nvim_win_set_cursor, preview_win, {
+        row_index + 1,
+        math.max((entry.col or 1) - 1, 0),
+      })
+    else
+      vim.api.nvim_buf_clear_namespace(preview_buf, native_preview_ns, 0, -1)
+      pcall(vim.api.nvim_win_set_cursor, preview_win, { 1, 0 })
+    end
+    vim.api.nvim_buf_set_option(preview_buf, 'modifiable', false)
+  end
+
+  local function set_index(new_index)
+    current_index = math.max(math.min(new_index, #items), 1)
+    vim.api.nvim_win_set_cursor(list_win, { current_index, 0 })
+    update_preview(current_index)
+  end
+
+  local function confirm()
+    local selected = items[current_index]
+    cleanup()
+    if selected and selected.value then
+      vim.schedule(function()
+        callback(selected.value)
+      end)
+    end
+  end
+
+  local function cancel()
+    cleanup()
+  end
+
+  set_index(current_index)
+
+  local mappings = {
+    ['<CR>'] = confirm,
+    ['<Esc>'] = cancel,
+    ['q'] = cancel,
+    ['<C-c>'] = cancel,
+    ['j'] = function() set_index(current_index + 1) end,
+    ['<Down>'] = function() set_index(current_index + 1) end,
+    ['k'] = function() set_index(current_index - 1) end,
+    ['<Up>'] = function() set_index(current_index - 1) end,
+    ['gg'] = function() set_index(1) end,
+    ['G'] = function() set_index(#items) end,
+    ['<C-d>'] = function() set_index(current_index + math.floor(height / 2)) end,
+    ['<C-u>'] = function() set_index(current_index - math.floor(height / 2)) end,
+  }
+  for lhs, rhs in pairs(mappings) do
+    vim.keymap.set('n', lhs, rhs, { buffer = list_buf, nowait = true, noremap = true, silent = true })
+  end
+
+  vim.api.nvim_create_autocmd('BufLeave', {
+    buffer = list_buf,
+    once = true,
+    callback = cleanup,
+  })
+
+  return true
+end
+
 local function select_with_vim_ui(entries, key, callback)
+  if select_with_native_popup(entries, key, callback) then
+    return true
+  end
   vim.ui.select(entries, {
     prompt = string.format('Usages of %s', key),
     format_item = format_usage_entry,
@@ -304,33 +532,71 @@ local function select_with_vim_ui(entries, key, callback)
 end
 
 local function select_with_telescope(entries, key, callback)
-  local ok, pickers = pcall(require, 'telescope.pickers')
-  if not ok then return false end
-  local finders = require('telescope.finders')
-  local conf = require('telescope.config').values
-  local actions = require('telescope.actions')
-  local action_state = require('telescope.actions.state')
+  local ok_pickers, pickers = pcall(require, 'telescope.pickers')
+  if not ok_pickers then return false end
+  local ok_finders, finders = pcall(require, 'telescope.finders')
+  if not ok_finders then return false end
+  local ok_conf, conf_mod = pcall(require, 'telescope.config')
+  if not ok_conf then return false end
+  local ok_actions, actions = pcall(require, 'telescope.actions')
+  if not ok_actions then return false end
+  local ok_state, action_state = pcall(require, 'telescope.actions.state')
+  if not ok_state then return false end
+  local ok_make_entry, telescope_make_entry = pcall(require, 'telescope.make_entry')
+  if not ok_make_entry then return false end
+
+  local display_items = build_usage_display_items(entries)
+  if vim.tbl_isempty(display_items) then
+    return false
+  end
+
+  local quickfix_entries = {}
+  for _, item in ipairs(display_items) do
+    local usage = item.value
+    if usage and usage.file and usage.file ~= '' then
+      table.insert(quickfix_entries, {
+        filename = usage.file,
+        lnum = usage.line or 1,
+        col = usage.col or 1,
+        text = usage.preview or '',
+        usage = usage,
+        display_str = item.display,
+      })
+    end
+  end
+  if vim.tbl_isempty(quickfix_entries) then
+    return false
+  end
+
+  local quickfix_maker = telescope_make_entry.gen_from_quickfix({})
+  local function entry_maker(entry)
+    local result = quickfix_maker(entry)
+    if result then
+      result.display = entry.display_str or result.display
+      result.ordinal = entry.display_str or result.ordinal
+    end
+    return result
+  end
 
   pickers.new({}, {
     prompt_title = string.format('Usages of %s', key),
     finder = finders.new_table {
-      results = entries,
-      entry_maker = function(item)
-        return {
-          value = item,
-          display = format_usage_entry(item),
-          ordinal = string.format('%s %s %s', item.key or key, item.file or '', item.preview or ''),
-        }
-      end,
+      results = quickfix_entries,
+      entry_maker = entry_maker,
     },
-    sorter = conf.generic_sorter({}),
+    sorter = conf_mod.values.generic_sorter({}),
+    previewer = conf_mod.values.qflist_previewer({}),
     attach_mappings = function(prompt_bufnr, map)
       local function select_current()
         local selection = action_state.get_selected_entry()
         if not selection then return end
         actions.close(prompt_bufnr)
         vim.schedule(function()
-          callback(selection.value)
+          local selected = selection.value
+          local usage = selected and selected.usage
+          if usage then
+            callback(usage)
+          end
         end)
       end
       map('i', '<CR>', select_current)
@@ -464,30 +730,61 @@ local function select_with_snacks(entries, key, callback)
       picker = snacks.picker
     end
   end
-  if not picker then return false end
+  if not picker then
+    return select_with_native_popup(entries, key, callback)
+  end
 
-  local select_fn = picker.select or picker.pick or picker.start
-  if type(select_fn) ~= 'function' then return false end
+  local build_items = build_usage_display_items(entries)
+  if vim.tbl_isempty(build_items) then
+    return false
+  end
 
-  local items = {}
-  for _, entry in ipairs(entries) do
-    table.insert(items, {
-      text = format_usage_entry(entry),
+  local snack_items = {}
+  for _, item in ipairs(build_items) do
+    local entry = item.value
+    table.insert(snack_items, {
+      text = item.display,
       value = entry,
+      file = entry.file,
+      lnum = entry.line or 1,
+      col = entry.col or 1,
+      preview = {
+        file = entry.file,
+        lnum = entry.line or 1,
+        col = entry.col or 1,
+      },
     })
   end
 
-  local ok_call, err = pcall(select_fn, picker, {
+  local select_fn = picker.select or picker.pick or picker.start
+  if type(select_fn) ~= 'function' then
+    return select_with_native_popup(entries, key, callback)
+  end
+
+  local config = {
     title = string.format('Usages of %s', key),
-    items = items,
-    action = function(item)
-      local value = item and (item.value or item)
-      if value then callback(value) end
+    items = snack_items,
+    preview = "preview",
+    confirm = function(p)
+      local selection = p and p:selected({ fallback = true })
+      local first = selection and selection[1]
+      if first and first.value then
+        callback(first.value)
+      end
+      if p and p.close then
+        p:close()
+      end
     end,
-  })
+  }
+
+  if picker.format and picker.format.ui_select then
+    config.format = picker.format.ui_select(nil, #snack_items)
+  end
+
+  local ok_call, err = pcall(select_fn, picker, config)
   if not ok_call then
     vim.notify('[i18n] snacks picker failed: ' .. tostring(err), vim.log.levels.WARN)
-    return false
+    return select_with_native_popup(entries, key, callback)
   end
   return true
 end
