@@ -342,26 +342,114 @@ local function select_with_telescope(entries, key, callback)
 end
 
 local function select_with_fzflua(entries, key, callback)
-  local ok, fzf = pcall(require, 'fzf-lua')
-  if not ok then return false end
-  local lines = {}
-  local lookup = {}
-  for idx, item in ipairs(entries) do
-    local display = format_usage_entry(item)
-    local line = string.format('%03d %s', idx, display)
-    lookup[line] = item
-    table.insert(lines, line)
+  local ok_fzf, fzf = pcall(require, 'fzf-lua')
+  if not ok_fzf then return false end
+
+  local ok_config, fzf_config = pcall(require, 'fzf-lua.config')
+  local ok_make_entry, make_entry = pcall(require, 'fzf-lua.make_entry')
+  local ok_path, fzf_path = pcall(require, 'fzf-lua.path')
+  if not (ok_config and ok_make_entry and ok_path) then
+    return false
   end
-  fzf.fzf_exec(lines, {
+
+  local function canonical_path(pathname)
+    if not pathname or pathname == '' then
+      return nil
+    end
+    return vim.loop.fs_realpath(pathname) or vim.fn.fnamemodify(pathname, ':p')
+  end
+
+  local line_lookup = {}
+  local location_lookup = {}
+
+  local opts = fzf_config.normalize_opts({
     prompt = string.format('Usages > %s > ', key),
-    actions = {
-      ['default'] = function(selected)
-        if not selected or not selected[1] then return end
-        local result = lookup[selected[1]]
-        if result then callback(result) end
-      end,
+    fzf_opts = {
+      ['--no-multi'] = '',
+      ['--info'] = 'inline',
     },
-  })
+  }, 'lsp')
+  if not opts then return false end
+  opts.fzf_opts['--multi'] = nil
+  opts.cwd = opts.cwd or (vim.loop and vim.loop.cwd() or vim.fn.getcwd())
+
+  local lines = {}
+  for _, item in ipairs(entries) do
+    local file = item.file or ''
+    if file ~= '' then
+      local entry_line = make_entry.lcol({
+        filename = file,
+        lnum = item.line or 1,
+        col = item.col or 1,
+        text = item.preview or '',
+      }, opts)
+      if entry_line then
+        local formatted = make_entry.file(entry_line, opts)
+        if formatted then
+          table.insert(lines, formatted)
+          line_lookup[formatted] = line_lookup[formatted] or {}
+          table.insert(line_lookup[formatted], item)
+          local abs = canonical_path(file)
+          if abs then
+            local loc_key = string.format('%s:%d:%d', abs, item.line or 1, item.col or 1)
+            location_lookup[loc_key] = location_lookup[loc_key] or {}
+            table.insert(location_lookup[loc_key], item)
+          end
+        end
+      end
+    end
+  end
+
+  if vim.tbl_isempty(lines) then
+    return false
+  end
+
+  opts.actions = {
+    ['default'] = function(selected, o)
+      if not selected or not selected[1] then return end
+      local entry_line = selected[1]
+      local parsed = fzf_path.entry_to_file(entry_line, o)
+      local result
+      local candidates = line_lookup[entry_line]
+      if candidates then
+        if #candidates == 1 then
+          result = candidates[1]
+        elseif parsed and parsed.path and parsed.path ~= '' then
+          local abs = canonical_path(parsed.path)
+          local lnum = parsed.line and parsed.line > 0 and parsed.line or 1
+          local col = parsed.col and parsed.col > 0 and parsed.col or 1
+          for _, candidate in ipairs(candidates) do
+            local candidate_path = canonical_path(candidate.file)
+            if candidate_path == abs
+                and (candidate.line or 1) == lnum
+                and (candidate.col or 1) == col then
+              result = candidate
+              break
+            end
+          end
+        end
+      end
+      if not result and parsed and parsed.path and parsed.path ~= '' then
+        local abs = canonical_path(parsed.path)
+        local lnum = parsed.line and parsed.line > 0 and parsed.line or 1
+        local col = parsed.col and parsed.col > 0 and parsed.col or 1
+        if abs then
+          local bucket = location_lookup[string.format('%s:%d:%d', abs, lnum, col)]
+          if bucket and #bucket > 0 then
+            result = bucket[1]
+          end
+        end
+      end
+      if not result and candidates and #candidates > 0 then
+        result = candidates[1]
+      end
+      if result then
+        callback(result)
+      end
+    end,
+  }
+
+  fzf.fzf_exec(lines, opts)
   return true
 end
 
