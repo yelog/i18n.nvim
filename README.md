@@ -285,6 +285,10 @@ So a project config will override anything you set in your Neovim config for tha
 > [!NOTE]
 > The complete, authoritative list of default options (with their current values) lives in `lua/i18n/config.lua` inside the `M.defaults` table. Consult that file to discover every available key, verify current defaults, or track new options introduced in updates.
 
+Requiring the module creates a global `I18n` alias, so mappings can call helpers
+directly (e.g. `function() I18n.i18n_keys() end`) without requiring the module
+inside each callback.
+
 Common options (all optional when a project file is present):
 - locales: array of language codes, first is considered default
 - sources: array of file patterns or objects:

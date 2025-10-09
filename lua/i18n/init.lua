@@ -4,6 +4,9 @@ local parser = require('i18n.parser')
 local display = require('i18n.display')
 local usages = require('i18n.usages')
 
+-- 暴露全局引用，便于在按键映射等场景直接调用
+rawset(_G, 'I18n', M)
+
 local function resolve_i18n_key_picker()
   local opts = config.options or {}
   local cfg = {}
