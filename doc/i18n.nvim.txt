@@ -108,8 +108,12 @@ func_pattern      {string|table}
 filetypes / ft    {string}  Restrict processing (defaults to
                           { 'vue','typescript','javascript','typescriptreact',
                           'javascriptreact','tsx','jsx','java' })
-show_translation  boolean   Show translated value inline
-show_origin       boolean   Show original key inline (mutually influential)
+show_mode         string    Controls inline rendering: 'both' | 'translation' |
+                          'translation_conceal' | 'origin' (fallback 'both'
+                          for empty/unknown values). 'translation' hides the
+                          raw key except on the cursor line; 'translation_conceal'
+                          also suppresses the translation on the cursor line;
+                          'origin' disables overlays entirely.
 diagnostic        bool|tbl  false disables; true default; table -> opts for
                             vim.diagnostic.set
 navigation.open_cmd string  edit|vsplit|split|tabedit
@@ -168,9 +172,9 @@ Example .i18nrc.lua: >
 COMMANDS                                               *i18n.nvim-commands*
 
 :I18nNextLocale          Cycle display locale (rotates locales array)
-:I18nToggleOrigin        Toggle inline showing translation vs key (also exposed via `I18n.toggle_origin()`)
-:I18nToggleTranslation   Toggle inline translation overlay on/off (also exposed via `I18n.toggle_translation()`)
-:I18nToggleLocaleFileEol Toggle EOL virtual translation in locale files (also exposed via `I18n.toggle_locale_file_eol()`)
+:I18nToggleOrigin        Toggle origin visibility while translations stay active (`I18n.toggle_origin()`)
+:I18nToggleTranslation   Toggle inline translation overlay on/off (`I18n.toggle_translation()`)
+:I18nToggleLocaleFileEol Toggle EOL virtual translation in locale files (`I18n.toggle_locale_file_eol()`)
 :I18nKeyUsages           Jump to usages of the key under cursor
 :I18nReload              Reload locales and kick off a usage rescan
 
@@ -312,6 +316,8 @@ Core (all via require('i18n')):
   toggle_origin()                   toggle origin/translation overlay
   toggle_translation()              toggle inline translation overlay
   toggle_locale_file_eol()          toggle EOL translations in locale files
+  set_show_mode(mode)               set inline rendering mode explicitly
+  get_show_mode()                   return current inline rendering mode
   options                           last merged options table
 
 Requiring the module also exposes a global `I18n` alias pointing to the same

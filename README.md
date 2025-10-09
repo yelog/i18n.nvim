@@ -128,11 +128,13 @@ Commands:
 - 🔄 :**I18nNextLocale**
   Cycles the active display language used for inline virtual text. It moves to the next entry in `locales` (wrapping back to the first). Inline overlays refresh automatically.
 - 👁 :**I18nToggleOrigin** / `I18n.toggle_origin()`
-  Toggles between showing the translated text (current language) and the raw/original i18n key in inline virtual text. When disabled you can easily copy / inspect the key names; toggling again restores the translation overlay. The helper is also exported via the global `I18n` table for easy use in mapping callbacks.
+  Switches between `show_mode = "both"` and a translation-only mode (restoring the last non-origin preference, defaulting to `"translation_conceal"`). Use this when you want to hide or reveal raw keys while leaving translations visible.
 - 💡 :**I18nToggleTranslation** / `I18n.toggle_translation()`
-  Toggles the inline translation overlay globally (show_translation). When disabled, no translated text is rendered (only original buffer content and/or keys if show_origin is enabled). Re-enable to restore translated overlays.
+  Toggles the inline translation overlay entirely by jumping between `show_mode = "origin"` and your previous non-origin mode. Handy for quickly disabling overlays while editing.
 - 📝 :**I18nToggleLocaleFileEol** / `I18n.toggle_locale_file_eol()`
   Toggles showing end-of-line translations in locale source files (per i18n key line). When enabled, each key line in a locale translation file shows the current display locale’s translation as EOL virtual text; disabling hides these overlays (useful for focused editing or cleaner diffs).
+
+Need a specific layout immediately? Call `I18n.set_show_mode('translation')` / `'translation_conceal'` / `'both'` / `'origin'` and use `I18n.get_show_mode()` to inspect the current value.
 
 ### 🆕 Interactive: Add Missing i18n Key
 
@@ -296,7 +298,7 @@ Common options (all optional when a project file is present):
   `{ 'vue', 'typescript', 'javascript', 'typescriptreact', 'javascriptreact', 'tsx', 'jsx', 'java' }`)
 - usage.popup_type: picker shown when a key has multiple usages (`vim_ui` | `telescope` | `fzf-lua` | `snacks`, default `vim_ui`)
 - i18n_keys.popup_type: picker backend for browsing keys (`fzf-lua` | `telescope` | `vim_ui` | `snacks`, default `fzf-lua`)
-- show_translation / show_origin: control inline rendering behavior
+- show_mode: controls inline rendering (`both` | `translation` | `translation_conceal` | `origin`; defaults to `both` when unset/unknown). `both` appends the translation after the raw key on every line. `translation` hides the key except on the cursor line (where both are shown). `translation_conceal` hides the key and suppresses the translation on the cursor line so you can edit the raw key comfortably. `origin` disables the overlay entirely.
 - show_locale_file_eol_usage: toggle usage badges in locale buffers (default `true`)
 - filetypes / ft: restrict which filetypes are processed
 - diagnostic: controls missing translation diagnostics (see below):
@@ -433,8 +435,7 @@ return {
   },
   func_type = { 'vue', 'typescript' },
   usage = { popup_type = 'vim_ui' },
-  show_translation = true,
-  show_origin = false,
+  show_mode = 'translation_conceal',
 }
 ```
 

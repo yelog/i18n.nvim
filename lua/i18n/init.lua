@@ -7,16 +7,88 @@ local usages = require('i18n.usages')
 -- 暴露全局引用，便于在按键映射等场景直接调用
 rawset(_G, 'I18n', M)
 
-local function toggle_origin()
-  config.options.show_origin = not config.options.show_origin
+local valid_show_modes = {
+  both = true,
+  translation = true,
+  translation_conceal = true,
+  origin = true,
+}
+
+local function current_show_mode()
+  local opts = config.options or {}
+  local mode = opts.show_mode
+  if type(mode) ~= 'string' then
+    return 'both'
+  end
+  mode = mode:lower()
+  if not valid_show_modes[mode] then
+    return 'both'
+  end
+  return mode
+end
+
+local function last_non_origin_mode()
+  local opts = config.options or {}
+  local last = opts._last_non_origin_show_mode
+  local normalized = config.normalize_show_mode(last)
+  if normalized and normalized ~= 'origin' then
+    return normalized
+  end
+  return 'both'
+end
+
+local function set_show_mode(mode)
+  local normalized = config.normalize_show_mode(mode)
+  if not normalized then
+    vim.notify(string.format('[i18n] Invalid show_mode: %s', tostring(mode)), vim.log.levels.WARN)
+    return current_show_mode()
+  end
+  config.options = config.options or {}
+  if normalized == config.options.show_mode then
+    return normalized
+  end
+  config.options.show_mode = normalized
+  if normalized ~= 'origin' then
+    config.options._last_non_origin_show_mode = normalized
+  elseif not config.options._last_non_origin_show_mode
+      or not valid_show_modes[config.options._last_non_origin_show_mode]
+      or config.options._last_non_origin_show_mode == 'origin' then
+    config.options._last_non_origin_show_mode = 'both'
+  end
   display.refresh()
-  return config.options.show_origin
+  return normalized
+end
+
+local function toggle_origin()
+  local mode = current_show_mode()
+  local target
+  if mode == 'both' then
+    target = 'translation_conceal'
+  elseif mode == 'translation' or mode == 'translation_conceal' then
+    target = 'both'
+  elseif mode == 'origin' then
+    local last = last_non_origin_mode()
+    if last == 'both' then
+      target = 'translation_conceal'
+    else
+      target = last
+    end
+  else
+    target = 'both'
+  end
+  return set_show_mode(target)
 end
 
 local function toggle_translation()
-  config.options.show_translation = not config.options.show_translation
-  display.refresh()
-  return config.options.show_translation
+  local mode = current_show_mode()
+  if mode == 'origin' then
+    return set_show_mode(last_non_origin_mode())
+  end
+  config.options = config.options or {}
+  if mode ~= 'origin' then
+    config.options._last_non_origin_show_mode = mode
+  end
+  return set_show_mode('origin')
 end
 
 local function toggle_locale_file_eol()
@@ -168,6 +240,14 @@ end
 
 M.toggle_locale_file_eol = function()
   return toggle_locale_file_eol()
+end
+
+M.set_show_mode = function(mode)
+  return set_show_mode(mode)
+end
+
+M.get_show_mode = function()
+  return current_show_mode()
 end
 
 M.i18n_keys = function()

@@ -39,6 +39,36 @@ M.next_locale = function()
   M.refresh()
 end
 
+local function get_show_mode()
+  local mode = (config.options or {}).show_mode
+  if type(mode) ~= 'string' then
+    return 'both'
+  end
+  mode = mode:lower()
+  if mode ~= 'both' and mode ~= 'translation' and mode ~= 'translation_conceal' and mode ~= 'origin' then
+    return 'both'
+  end
+  return mode
+end
+
+local function should_show_translation(mode, is_cursor_line)
+  if mode == 'origin' then
+    return false
+  end
+  if mode == 'translation_conceal' and is_cursor_line then
+    return false
+  end
+  return true
+end
+
+local function should_hide_origin(mode, is_cursor_line)
+  if mode == 'origin' or mode == 'both' then
+    return false
+  end
+  -- translation / translation_conceal hide origin except on cursor line
+  return not is_cursor_line
+end
+
 -- 判断文件类型是否需要处理（动态适配插件使用者在插件管理器里设置的 ft）
 local function is_supported_ft(bufnr)
   bufnr = bufnr or 0
@@ -135,7 +165,7 @@ local function extract_i18n_keys(_, line_num, line, patterns, comment_checker)
 end
 
 -- 设置虚拟文本
-local function set_virtual_text(bufnr, line_num, col, text)
+local function set_virtual_text(bufnr, line_num, col, text, origin_visible)
   if not text or text == "" then return end
   if not vim.api.nvim_buf_is_valid(bufnr) then return end
   local line = vim.api.nvim_buf_get_lines(bufnr, line_num, line_num + 1, false)[1]
@@ -143,10 +173,7 @@ local function set_virtual_text(bufnr, line_num, col, text)
   -- extmark col 为 0-based，且不能超过行长度
   local line_len = #line
   local col0 = math.max(0, math.min((col or 0) - 1, line_len))
-  local prefix = ""
-  if config.options.show_origin ~= false then
-    prefix = ": "
-  end
+  local prefix = origin_visible and ": " or ""
   local ok = pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, line_num, col0, {
     virt_text = { { prefix .. text, "Comment" } },
     virt_text_pos = "inline",
@@ -325,6 +352,8 @@ M.refresh_buffer = function(bufnr)
     return
   end
 
+  local show_mode = get_show_mode()
+
   -- 获取当前窗口和光标行
   local current_win = vim.api.nvim_get_current_win()
   local cursor_line = nil
@@ -332,8 +361,8 @@ M.refresh_buffer = function(bufnr)
     cursor_line = vim.api.nvim_win_get_cursor(current_win)[1]
   end
 
-  -- 根据 show_origin 控制 conceallevel
-  if config.options.show_origin == false then
+  -- 根据 show_mode 控制 conceallevel
+  if show_mode == 'translation' or show_mode == 'translation_conceal' then
     vim.api.nvim_buf_set_option(bufnr, 'conceallevel', 2)
   else
     vim.api.nvim_buf_set_option(bufnr, 'conceallevel', 0)
@@ -347,14 +376,22 @@ M.refresh_buffer = function(bufnr)
   for line_num, line in ipairs(lines) do
     local keys = extract_i18n_keys(bufnr, line_num, line, patterns, comment_checker)
     -- vim.notify("keys: " .. vim.inspect(keys), vim.log.levels.DEBUG)
+    local is_cursor_line = cursor_line and line_num == cursor_line
     for _, key_info in ipairs(keys) do
       local translation = parser.get_translation(key_info.key, default_locale)
 
-      if translation and config.options.show_translation then
-        -- 如果当前行为光标所在行，则不显示虚拟文本
-        if not cursor_line or line_num ~= cursor_line then
-          set_virtual_text(bufnr, line_num - 1, key_info.end_pos, translation)
-        end
+      local show_translation_line = false
+      if translation and should_show_translation(show_mode, is_cursor_line) then
+        show_translation_line = true
+      end
+
+      local hide_origin_line = false
+      if translation and should_hide_origin(show_mode, is_cursor_line) then
+        hide_origin_line = true
+      end
+
+      if translation and show_translation_line then
+        set_virtual_text(bufnr, line_num - 1, key_info.end_pos, translation, not hide_origin_line)
       end
 
       if diag_enabled and not translation then
@@ -369,8 +406,8 @@ M.refresh_buffer = function(bufnr)
         })
       end
 
-      -- 只有找到译文并成功设置 virt_text 后，show_origin = false 才 conceal
-      if translation and config.options.show_origin == false then
+      -- 只有找到译文并成功设置虚拟文本且模式要求隐藏原文时才 conceal
+      if translation and hide_origin_line then
         -- 只隐藏 key 及其引号，不隐藏函数名和括号
         -- 重新用正则查找本行内 key 的引号包裹范围
         -- 例如 $t('common.save') 只隐藏 'common.save'

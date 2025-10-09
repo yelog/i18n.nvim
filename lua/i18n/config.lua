@@ -1,8 +1,57 @@
 local M = {}
 
+local valid_show_modes = {
+  both = true,
+  translation = true,
+  translation_conceal = true,
+  origin = true,
+}
+
 local function trim(value)
   if type(value) ~= 'string' then return value end
   return (value:gsub('^%s*(.-)%s*$', '%1'))
+end
+
+local function normalize_show_mode_value(value)
+  if type(value) ~= 'string' then return nil end
+  local normalized = trim(value):lower()
+  if valid_show_modes[normalized] then
+    return normalized
+  end
+  return nil
+end
+
+local function derive_show_mode(opts)
+  if type(opts) ~= 'table' then
+    return 'both'
+  end
+
+  local mode = normalize_show_mode_value(opts.show_mode)
+  if mode then
+    return mode
+  end
+
+  local st = opts.show_translation
+  local so = opts.show_origin
+  if st ~= nil or so ~= nil then
+    if st == false then
+      return 'origin'
+    end
+    if so == true then
+      return 'both'
+    end
+    if st == true and so == false then
+      return 'translation_conceal'
+    end
+    if st == true and so == nil then
+      return 'translation_conceal'
+    end
+    if so == false then
+      return 'translation_conceal'
+    end
+  end
+
+  return 'both'
 end
 
 local function escape_lua_pattern(str)
@@ -230,8 +279,7 @@ local function normalize_func_patterns(raw)
 end
 
 M.defaults = {
-  show_translation = true,
-  show_origin = false,
+  show_mode = 'both',
   -- Whether to display the default language translation as virtual text at the end of key lines in locale files
   show_locale_file_eol_translation = true,
   -- Whether to append usage counts in locale files alongside translations
@@ -351,8 +399,20 @@ M.setup = function(opts)
   local raw_func_spec = M.options.func_pattern
   M.options._func_pattern_spec = raw_func_spec
   M.options.func_pattern = normalize_func_patterns(raw_func_spec)
+  M.options.show_mode = derive_show_mode(M.options)
+  if M.options.show_mode ~= 'origin' then
+    M.options._last_non_origin_show_mode = M.options.show_mode
+  else
+    M.options._last_non_origin_show_mode = 'both'
+  end
+  M.options.show_translation = nil
+  M.options.show_origin = nil
 
   return M.options
+end
+
+function M.normalize_show_mode(mode)
+  return normalize_show_mode_value(mode)
 end
 
 return M
