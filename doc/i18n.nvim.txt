@@ -168,7 +168,7 @@ Example .i18nrc.lua: >
 COMMANDS                                               *i18n.nvim-commands*
 
 :I18nNextLocale          Cycle display locale (rotates locales array)
-:I18nToggleOrigin        Toggle inline showing translation vs key
+:I18nToggleOrigin        Toggle inline showing translation vs key (also exposed via `I18n.toggle_origin()`)
 :I18nToggleLocaleFileEol Toggle EOL virtual translation in locale files
 :I18nKeyUsages           Jump to usages of the key under cursor
 :I18nReload              Reload locales and kick off a usage rescan
@@ -308,6 +308,7 @@ Core (all via require('i18n')):
   show_i18n_keys_with_fzf()         (deprecated) fzf backend picker
   show_i18n_keys_with_telescope()   (deprecated) Telescope backend picker
   next_locale()                     (internal; wrapped by :I18nNextLocale)
+  toggle_origin()                   toggle origin/translation overlay
   options                           last merged options table
 
 Requiring the module also exposes a global `I18n` alias pointing to the same

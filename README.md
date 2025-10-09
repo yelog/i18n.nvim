@@ -132,8 +132,8 @@ vim.keymap.set("n", "<leader>io", "<cmd>I18nToggleOrigin<CR>", { desc = "Toggle 
 Commands:
 - 🔄 :**I18nNextLocale**
   Cycles the active display language used for inline virtual text. It moves to the next entry in `locales` (wrapping back to the first). Inline overlays refresh automatically.
-- 👁 :**I18nToggleOrigin**
-  Toggles between showing the translated text (current language) and the raw/original i18n key in inline virtual text. When disabled you can easily copy / inspect the key names; toggling again restores the translation overlay.
+- 👁 :**I18nToggleOrigin** / `I18n.toggle_origin()`
+  Toggles between showing the translated text (current language) and the raw/original i18n key in inline virtual text. When disabled you can easily copy / inspect the key names; toggling again restores the translation overlay. The helper is also exported via the global `I18n` table for easy use in mapping callbacks.
 - 💡 :**I18nToggleTranslation**
   Toggles the inline translation overlay globally (show_translation). When disabled, no translated text is rendered (only original buffer content and/or keys if show_origin is enabled). Re-enable to restore translated overlays.
 - 📝 :**I18nToggleLocaleFileEol**

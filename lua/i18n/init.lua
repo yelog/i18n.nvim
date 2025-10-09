@@ -7,6 +7,12 @@ local usages = require('i18n.usages')
 -- 暴露全局引用，便于在按键映射等场景直接调用
 rawset(_G, 'I18n', M)
 
+local function toggle_origin()
+  config.options.show_origin = not config.options.show_origin
+  display.refresh()
+  return config.options.show_origin
+end
+
 local function resolve_i18n_key_picker()
   local opts = config.options or {}
   local cfg = {}
@@ -96,8 +102,7 @@ M.setup = function(opts)
   end, {})
 
   vim.api.nvim_create_user_command('I18nToggleOrigin', function()
-    config.options.show_origin = not config.options.show_origin
-    display.refresh()
+    M.toggle_origin()
   end, { desc = "Toggle i18n original text display/hide" })
 
   vim.api.nvim_create_user_command('I18nToggleTranslation', function()
@@ -142,6 +147,10 @@ end
 
 M.next_locale = display.next_locale
 M.get_current_locale = display.get_current_locale
+
+M.toggle_origin = function()
+  return toggle_origin()
+end
 
 M.i18n_keys = function()
   local picker = resolve_i18n_key_picker()
