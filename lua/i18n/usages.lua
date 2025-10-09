@@ -41,6 +41,15 @@ M.file_index = {}
 M._setup_done = false
 
 local pending_refresh = false
+local async_scan = {
+  active = false,
+  request_id = 0,
+  files = {},
+  index = 1,
+  processed_since_refresh = 0,
+  refresh_interval = 40,
+  time_budget_ns = 10 * 1000 * 1000, -- 10ms per batch
+}
 
 local function schedule_display_refresh()
   if pending_refresh then return end
@@ -943,9 +952,86 @@ function M.scan_project_usages()
   return files
 end
 
-function M.refresh()
-  local files = M.scan_project_usages()
+local function process_async_batch(request_id)
+  if async_scan.request_id ~= request_id then
+    return
+  end
+
+  local start = vim.loop.hrtime()
+  local files = async_scan.files
+  local total = #files
+  local idx = async_scan.index
+
+  while idx <= total do
+    local file = files[idx]
+    idx = idx + 1
+
+    local entries, key_set = collect_file_usages(file)
+    if next(key_set) then
+      record_entries(file, entries, key_set)
+    end
+
+    async_scan.processed_since_refresh = async_scan.processed_since_refresh + 1
+    if async_scan.processed_since_refresh >= async_scan.refresh_interval then
+      async_scan.processed_since_refresh = 0
+      schedule_display_refresh()
+    end
+
+    if (vim.loop.hrtime() - start) >= async_scan.time_budget_ns then
+      break
+    end
+  end
+
+  async_scan.index = idx
+
+  if idx > total then
+    async_scan.active = false
+    async_scan.files = {}
+    async_scan.index = 1
+    async_scan.processed_since_refresh = 0
+    schedule_display_refresh()
+    return
+  end
+
+  vim.defer_fn(function()
+    process_async_batch(request_id)
+  end, 0)
+end
+
+function M.refresh_async(opts)
+  opts = opts or {}
+
+  local files = collect_files()
+  async_scan.request_id = async_scan.request_id + 1
+  async_scan.files = files
+  async_scan.index = 1
+  async_scan.active = true
+  async_scan.processed_since_refresh = 0
+
+  if opts.refresh_interval and opts.refresh_interval > 0 then
+    async_scan.refresh_interval = opts.refresh_interval
+  end
+
+  if opts.time_budget_ms and opts.time_budget_ms > 0 then
+    async_scan.time_budget_ns = opts.time_budget_ms * 1000 * 1000
+  end
+
+  M.usages = {}
+  M.file_index = {}
+
+  vim.defer_fn(function()
+    process_async_batch(async_scan.request_id)
+  end, opts.start_delay_ms or 0)
+
   return files
+end
+
+function M.refresh(opts)
+  opts = opts or {}
+  if opts.sync then
+    return M.scan_project_usages()
+  end
+  return M.refresh_async(opts)
 end
 
 function M.get_usages_for_key(key)
@@ -1038,9 +1124,20 @@ function M.setup()
     })
   end
 
-  vim.schedule(function()
-    M.scan_project_usages()
-  end)
+  local function start_initial_scan()
+    M.refresh_async({ start_delay_ms = 100 })
+  end
+
+  if vim.v.vim_did_enter == 1 then
+    vim.defer_fn(start_initial_scan, 0)
+  else
+    vim.api.nvim_create_autocmd('VimEnter', {
+      group = group,
+      once = true,
+      callback = start_initial_scan,
+      desc = 'Initial async scan of i18n key usages',
+    })
+  end
 end
 
 return M

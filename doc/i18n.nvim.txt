@@ -170,8 +170,15 @@ COMMANDS                                               *i18n.nvim-commands*
 :I18nNextLocale          Cycle display locale (rotates locales array)
 :I18nToggleOrigin        Toggle inline showing translation vs key
 :I18nToggleLocaleFileEol Toggle EOL virtual translation in locale files
+:I18nKeyUsages           Jump to usages of the key under cursor
+:I18nReload              Reload locales and kick off a usage rescan
 
 All refresh inline display automatically.
+
+Usage scans initialize asynchronously after |VimEnter| so startup remains
+responsive; counts backfill in the background. Trigger another background
+pass with `require('i18n').refresh_usages()` or force a blocking rescan with
+`require('i18n').refresh_usages({ sync = true })`.
 
 ==============================================================================
 KEYMAPS                                                 *i18n.nvim-keymaps*

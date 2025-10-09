@@ -363,10 +363,12 @@ files matching `func_type` (defaults to `{ 'vue', 'typescript', 'javascript',
   'typescriptreact', 'javascriptreact', 'tsx', 'jsx', 'java' }`) using
 `rg --files` and falls back to `git ls-files --exclude-standard`, so
 `.gitignore`d paths are skipped automatically.
+Initial project scans now run asynchronously after `VimEnter`, keeping startup
+responsive while usage counts backfill in the background.
 
 - Locale buffers append `← [No usages]` / `← [2 usages]` style badges before the translation so coverage and text remain visually distinct.
 - `:I18nKeyUsages` or `require('i18n').i18n_key_usages()` inspects the key under the cursor: one usage jumps immediately; multiple usages open your configured picker.
-- Saved buffers matching `func_type` are rescanned automatically; trigger a full rescan with `require('i18n').refresh_usages()` if you tweak configuration on the fly.
+- Saved buffers matching `func_type` are rescanned automatically; trigger a background rescan with `require('i18n').refresh_usages()` if you tweak configuration on the fly (pass `{ sync = true }` to block until completion).
 - Set `usage = { popup_type = 'telescope' | 'fzf-lua' | 'snacks' | 'vim_ui' }` to reuse your preferred picker when resolving multiple usages.
 - Adjust highlight links via `:hi I18nUsageLabel`, `:hi I18nUsageTranslation`, and `:hi I18nUsageSeparator` if you prefer different colors.
 
