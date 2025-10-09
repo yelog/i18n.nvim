@@ -272,13 +272,19 @@ local function normalize_func_patterns(raw)
         add_pattern(normalized, seen, pat)
       end
     end
-    vim.notify('[i18n] No func_pattern entries generated any patterns; falling back to defaults (t/$t).', vim.log.levels.WARN)
+    vim.notify('[i18n] No func_pattern entries generated any patterns; falling back to defaults (t/$t).',
+      vim.log.levels.WARN)
   end
 
   return normalized
 end
 
 M.defaults = {
+  -- Inline rendering behaviour:
+  --   'both'                : always show original key + translation inline
+  --   'translation'         : hide key except on cursor line (shows key+translation)
+  --   'translation_conceal' : hide key and conceal translation on cursor line
+  --   'origin'              : disable translation overlay (show key only)
   show_mode = 'both',
   -- Whether to display the default language translation as virtual text at the end of key lines in locale files
   show_locale_file_eol_translation = true,
