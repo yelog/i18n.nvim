@@ -13,6 +13,19 @@ local function toggle_origin()
   return config.options.show_origin
 end
 
+local function toggle_translation()
+  config.options.show_translation = not config.options.show_translation
+  display.refresh()
+  return config.options.show_translation
+end
+
+local function toggle_locale_file_eol()
+  config.options.show_locale_file_eol_translation =
+      not config.options.show_locale_file_eol_translation
+  display.refresh()
+  return config.options.show_locale_file_eol_translation
+end
+
 local function resolve_i18n_key_picker()
   local opts = config.options or {}
   local cfg = {}
@@ -106,14 +119,11 @@ M.setup = function(opts)
   end, { desc = "Toggle i18n original text display/hide" })
 
   vim.api.nvim_create_user_command('I18nToggleTranslation', function()
-    config.options.show_translation = not config.options.show_translation
-    display.refresh()
+    M.toggle_translation()
   end, { desc = "Toggle inline translation overlay on/off" })
 
   vim.api.nvim_create_user_command('I18nToggleLocaleFileEol', function()
-    config.options.show_locale_file_eol_translation =
-        not config.options.show_locale_file_eol_translation
-    display.refresh()
+    M.toggle_locale_file_eol()
   end, { desc = "Toggle show translation at end of line in locale files" })
 
   vim.api.nvim_create_user_command('I18nDefinitionNextLocale', function()
@@ -150,6 +160,14 @@ M.get_current_locale = display.get_current_locale
 
 M.toggle_origin = function()
   return toggle_origin()
+end
+
+M.toggle_translation = function()
+  return toggle_translation()
+end
+
+M.toggle_locale_file_eol = function()
+  return toggle_locale_file_eol()
 end
 
 M.i18n_keys = function()

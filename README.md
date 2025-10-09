@@ -104,29 +104,24 @@ Example configuration using lazy.nvim:
 
 ## 🎛 Keymaps & Commands
 
-Recommended keymaps (example using lazy-loaded setup):
+Recommended keymaps (lazy.nvim `keys` example, using the global `I18n` helper):
 ```lua
--- Browse i18n keys (backend controlled via `i18n_keys.popup_type`)
-vim.keymap.set("n", "<leader>ik", require("i18n").i18n_keys, { desc = "Browse i18n keys" })
--- When using the default fzf-lua backend the picker supports:
---  <CR>    : copy key
---  <C-y>   : copy current locale translation
---  <C-j>   : jump (current locale first, fallback default)
---  <C-l>   : choose locale then jump (secondary picker)
---  <C-x>   : horizontal split jump
---  <C-v>   : vertical split jump
---  <C-t>   : tab jump
+keys = {
+  { "<D-S-n>", function() I18n.i18n_keys() end,      desc = "Show i18n keys" },
+  { "<D-S-B>", function() I18n.next_locale() end,    desc = "Switch to next locale" },
+  { "<D-S-J>", function() I18n.toggle_origin() end,  desc = "Toggle origin overlay" },
+}
+-- When using the default fzf-lua backend the key picker supports:
+--   <CR> : copy key
+--   <C-y>: copy current locale translation
+--   <C-j>: jump (current locale first, fallback default)
+--   <C-l>: choose locale then jump (secondary picker)
+--   <C-x>: horizontal split jump
+--   <C-v>: vertical split jump
+--   <C-t>: tab jump
 -- Override these in setup(): i18n_keys.keys = { jump = { "<c-j>" }, choose_locale_jump = { "<c-l>" } }
 -- Other popup types: set `i18n_keys = { popup_type = 'telescope' | 'vim_ui' | 'snacks' | 'fzf-lua' }`.
 -- `vim_ui` renders a native floating picker; `snacks` delegates to folke/snacks.nvim when available (falling back to the native picker otherwise).
-```
-
-
-```lua
--- Cycle display language (rotates locales; updates inline virtual text)
-vim.keymap.set("n", "<leader>in", "<cmd>I18nNextLocale<CR>", { desc = "Cycle i18n display language" })
--- Toggle whether inline shows the translated text or the raw i18n key
-vim.keymap.set("n", "<leader>io", "<cmd>I18nToggleOrigin<CR>", { desc = "Toggle i18n origin display" })
 ```
 
 Commands:
@@ -134,9 +129,9 @@ Commands:
   Cycles the active display language used for inline virtual text. It moves to the next entry in `locales` (wrapping back to the first). Inline overlays refresh automatically.
 - 👁 :**I18nToggleOrigin** / `I18n.toggle_origin()`
   Toggles between showing the translated text (current language) and the raw/original i18n key in inline virtual text. When disabled you can easily copy / inspect the key names; toggling again restores the translation overlay. The helper is also exported via the global `I18n` table for easy use in mapping callbacks.
-- 💡 :**I18nToggleTranslation**
+- 💡 :**I18nToggleTranslation** / `I18n.toggle_translation()`
   Toggles the inline translation overlay globally (show_translation). When disabled, no translated text is rendered (only original buffer content and/or keys if show_origin is enabled). Re-enable to restore translated overlays.
-- 📝 :**I18nToggleLocaleFileEol**
+- 📝 :**I18nToggleLocaleFileEol** / `I18n.toggle_locale_file_eol()`
   Toggles showing end-of-line translations in locale source files (per i18n key line). When enabled, each key line in a locale translation file shows the current display locale’s translation as EOL virtual text; disabling hides these overlays (useful for focused editing or cleaner diffs).
 
 ### 🆕 Interactive: Add Missing i18n Key
