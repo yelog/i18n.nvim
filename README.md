@@ -312,7 +312,7 @@ Common options (all optional when a project file is present):
   raw Lua patterns are still accepted for legacy setups.
 - func_type: filetype or glob list scanned for usage counts (defaults to
   `{ 'vue', 'typescript', 'javascript', 'typescriptreact', 'javascriptreact', 'tsx', 'jsx', 'java' }`)
-- popup.type: picker shown when a key has multiple usages (`vim_ui` | `telescope` | `fzf-lua` | `snacks`, default `vim_ui`)
+- usage.popup_type: picker shown when a key has multiple usages (`vim_ui` | `telescope` | `fzf-lua` | `snacks`, default `vim_ui`)
 - show_translation / show_origin: control inline rendering behavior
 - show_locale_file_eol_usage: toggle usage badges in locale buffers (default `true`)
 - filetypes / ft: restrict which filetypes are processed
@@ -383,7 +383,7 @@ files matching `func_type` (defaults to `{ 'vue', 'typescript', 'javascript',
 - Locale buffers append `← [No usages]` / `← [2 usages]` style badges before the translation so coverage and text remain visually distinct.
 - `:I18nKeyUsages` or `require('i18n').i18n_key_usages()` inspects the key under the cursor: one usage jumps immediately; multiple usages open your configured picker.
 - Saved buffers matching `func_type` are rescanned automatically; trigger a full rescan with `require('i18n').refresh_usages()` if you tweak configuration on the fly.
-- Set `popup = { type = 'telescope' | 'fzf-lua' | 'snacks' | 'vim_ui' }` to reuse your preferred picker when resolving multiple usages.
+- Set `usage = { popup_type = 'telescope' | 'fzf-lua' | 'snacks' | 'vim_ui' }` to reuse your preferred picker when resolving multiple usages.
 - Adjust highlight links via `:hi I18nUsageLabel`, `:hi I18nUsageTranslation`, and `:hi I18nUsageSeparator` if you prefer different colors.
 
 Example keymap that tries the i18n usage jump first, then falls back to LSP references (mirrors the `gd` example above):
@@ -447,7 +447,7 @@ return {
     { call = 'i18n.t' },
   },
   func_type = { 'vue', 'typescript' },
-  popup = { type = 'vim_ui' },
+  usage = { popup_type = 'vim_ui' },
   show_translation = true,
   show_origin = false,
 }

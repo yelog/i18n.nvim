@@ -797,8 +797,15 @@ local popup_handlers = {
 }
 
 local function pick_usage(entries, key, callback)
-  local popup_cfg = (config.options and config.options.popup) or {}
-  local preferred = popup_cfg.type or 'vim_ui'
+  local opts = config.options or {}
+  local popup_cfg = {}
+  if type(opts.usage) == 'table' then
+    popup_cfg = opts.usage
+  elseif type(opts.popup) == 'table' then
+    -- backward compatibility with old configuration
+    popup_cfg = opts.popup
+  end
+  local preferred = popup_cfg.popup_type or popup_cfg.type or 'vim_ui'
   local order = { preferred }
   if preferred ~= 'vim_ui' then
     table.insert(order, 'vim_ui')

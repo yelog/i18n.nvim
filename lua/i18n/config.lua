@@ -251,10 +251,10 @@ M.defaults = {
     "src/locales/{locales}.json",
   },
   navigation = {},
-  popup = {
+  usage = {
     -- Popup provider used when choosing between multiple usage locations
     -- Available values: 'vim_ui', 'telescope', 'fzf-lua', 'snacks'
-    type = 'vim_ui',
+    popup_type = 'vim_ui',
   },
   -- Filetypes/extensions to scan when collecting key usages in project source files
   func_type = {
