@@ -222,12 +222,12 @@ Picker entry point: >
 <
 
 Backend selection is controlled by `i18n_keys.popup_type` (`'fzf-lua'` by
-default, set to `'telescope'` to use Telescope).  The configuration table also
-hosts backend-specific tweaks:
+default).  Supported values: `'fzf-lua'`, `'telescope'`, `'vim_ui'`, `'snacks'`.
+The configuration table also hosts backend-specific tweaks:
 >
   require('i18n').setup({
     i18n_keys = {
-      popup_type = 'fzf-lua', -- or 'telescope'
+      popup_type = 'fzf-lua', -- or 'telescope' | 'vim_ui' | 'snacks'
       keys = {
         jump = { "<c-j>" },
         choose_locale_jump = { "<c-l>" },
@@ -246,7 +246,9 @@ When using the fzf-lua backend the default in-picker actions are:
   <C-t> tab jump
 
 Switching to Telescope reuses the same keymap (`i18n_keys()`); press `?` inside
-the picker to see Telescope’s help overlay.
+the picker to see Telescope’s help overlay. `vim_ui` renders a native floating
+picker with preview; `snacks` delegates to `Snacks.picker` when available and
+falls back to the native picker otherwise.
 
 *Deprecated*: `show_i18n_keys_with_fzf()` and `show_i18n_keys_with_telescope()`
 remain for backward compatibility but emit a warning. Prefer `i18n_keys()`.

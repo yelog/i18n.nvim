@@ -22,6 +22,22 @@ local function resolve_i18n_key_picker()
     vim.notify(message, vim.log.levels.WARN)
   end
 
+  if popup_type == 'vim_ui' then
+    local ok_picker, key_picker = pcall(require, 'i18n.key_picker')
+    if ok_picker and key_picker.show_with_native then
+      return function()
+        return key_picker.show_with_native()
+      end
+    end
+  elseif popup_type == 'snacks' then
+    local ok_picker, key_picker = pcall(require, 'i18n.key_picker')
+    if ok_picker and key_picker.show_with_snacks then
+      return function()
+        return key_picker.show_with_snacks()
+      end
+    end
+  end
+
   if popup_type == 'telescope' then
     local ok, telescope = pcall(require, 'i18n.integration.telescope')
     if ok and telescope.show_i18n_keys_with_telescope then

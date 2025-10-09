@@ -117,6 +117,8 @@ vim.keymap.set("n", "<leader>ik", require("i18n").i18n_keys, { desc = "Browse i1
 --  <C-v>   : vertical split jump
 --  <C-t>   : tab jump
 -- Override these in setup(): i18n_keys.keys = { jump = { "<c-j>" }, choose_locale_jump = { "<c-l>" } }
+-- Other popup types: set `i18n_keys = { popup_type = 'telescope' | 'vim_ui' | 'snacks' | 'fzf-lua' }`.
+-- `vim_ui` renders a native floating picker; `snacks` delegates to folke/snacks.nvim when available (falling back to the native picker otherwise).
 ```
 
 
@@ -264,8 +266,9 @@ Setup (lazy.nvim example):
 }
 ```
 
-To switch the picker to Telescope, set `i18n_keys = { popup_type = 'telescope' }` in your setup (or project config).  
-The same keymap above will now open the Telescope UI; press `?` inside the picker to view the standard Telescope help.  
+To switch the picker backend, set `i18n_keys = { popup_type = 'telescope' | 'vim_ui' | 'snacks' | 'fzf-lua' }` in your setup (or project config).  
+`vim_ui` renders a native floating picker with preview; `snacks` delegates to `Snacks.picker` when installed and falls back to the native picker otherwise.  
+The same keymap above will now open the chosen UI; Telescope users can press `?` inside the picker to view the standard help overlay.  
 The legacy helpers `show_i18n_keys_with_fzf()` / `show_i18n_keys_with_telescope()` are still available but deprecated in favor of `i18n_keys()`.
 
 ## ⚙️ Configuration
@@ -293,6 +296,7 @@ Common options (all optional when a project file is present):
 - func_type: filetype or glob list scanned for usage counts (defaults to
   `{ 'vue', 'typescript', 'javascript', 'typescriptreact', 'javascriptreact', 'tsx', 'jsx', 'java' }`)
 - usage.popup_type: picker shown when a key has multiple usages (`vim_ui` | `telescope` | `fzf-lua` | `snacks`, default `vim_ui`)
+- i18n_keys.popup_type: picker backend for browsing keys (`fzf-lua` | `telescope` | `vim_ui` | `snacks`, default `fzf-lua`)
 - show_translation / show_origin: control inline rendering behavior
 - show_locale_file_eol_usage: toggle usage badges in locale buffers (default `true`)
 - filetypes / ft: restrict which filetypes are processed
