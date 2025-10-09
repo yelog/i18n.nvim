@@ -14,7 +14,7 @@ CONTENTS                                                *i18n.nvim-contents*
   8. Keymaps ............................. |i18n.nvim-keymaps|
   9. Navigation .......................... |i18n.nvim-navigation|
  10. Popup ................................|i18n.nvim-popup|
- 11. FZF Integration ..................... |i18n.nvim-fzf|
+ 11. I18n Keys Picker ..................... |i18n.nvim-i18n-keys|
  12. blink.cmp Integration ............... |i18n.nvim-blink|
  13. Diagnostics ......................... |i18n.nvim-diagnostics|
  14. API ................................. |i18n.nvim-api|
@@ -36,7 +36,7 @@ FEATURES                                               *i18n.nvim-features*
 - Inline virtual text (translation or original key)
 - Popup with all locale translations
 - Jump from usage to definition line
-- FZF fuzzy picker (copy / jump / choose locale)
+- Configurable key picker (fzf-lua / Telescope)
 - blink.cmp completion source (multi-locale documentation)
 - Project-level config override
 - Optional diagnostics for missing translations
@@ -178,8 +178,8 @@ KEYMAPS                                                 *i18n.nvim-keymaps*
 
 Suggested: >
   vim.keymap.set("n","<leader>fi",
-    require("i18n").show_i18n_keys_with_fzf,
-    { desc = "Fuzzy i18n key" })
+    require("i18n").i18n_keys,
+    { desc = "Browse i18n keys" })
 
   vim.keymap.set("n","<D-S-n>", "<cmd>I18nNextLocale<CR>")
   vim.keymap.set("n","<leader>io","<cmd>I18nToggleOrigin<CR>")
@@ -215,29 +215,41 @@ Show all translations for key under cursor in a floating window: >
 Returns false if no key / translations. Auto-closes on movement events.
 
 ==============================================================================
-FZF INTEGRATION                                          *i18n.nvim-fzf*
+I18N KEYS PICKER                                      *i18n.nvim-i18n-keys*
 
-Picker: >
-  require('i18n').show_i18n_keys_with_fzf()
+Picker entry point: >
+  require('i18n').i18n_keys()
 <
-Default actions (inside picker):
+
+Backend selection is controlled by `i18n_keys.popup_type` (`'fzf-lua'` by
+default, set to `'telescope'` to use Telescope).  The configuration table also
+hosts backend-specific tweaks:
+>
+  require('i18n').setup({
+    i18n_keys = {
+      popup_type = 'fzf-lua', -- or 'telescope'
+      keys = {
+        jump = { "<c-j>" },
+        choose_locale_jump = { "<c-l>" },
+      },
+    },
+  })
+<
+
+When using the fzf-lua backend the default in-picker actions are:
   <CR>  copy key
   <C-y> copy current locale translation
-  <C-j> jump (current display locale, fallback default)
+  <C-j> jump (current display locale, fallback default locale)
   <C-l> choose locale then jump
   <C-x> split jump
   <C-v> vsplit jump
   <C-t> tab jump
 
-Customize via setup(): >
-  require('i18n').setup({
-    fzf = {
-      keys = {
-        jump = { "<c-j>" },
-        choose_locale_jump = { "<c-l>" },
-      }
-    }
-  })
+Switching to Telescope reuses the same keymap (`i18n_keys()`); press `?` inside
+the picker to see Telescope’s help overlay.
+
+*Deprecated*: `show_i18n_keys_with_fzf()` and `show_i18n_keys_with_telescope()`
+remain for backward compatibility but emit a warning. Prefer `i18n_keys()`.
 <
 
 ==============================================================================
@@ -283,7 +295,9 @@ Core (all via require('i18n')):
   i18n_definition()                 jump usage -> definition (bool)
   i18n_definition_next_locale()     jump using next locale file
   show_popup()                      popup translations (bool)
-  show_i18n_keys_with_fzf()         open picker
+  i18n_keys()                       open configured key picker
+  show_i18n_keys_with_fzf()         (deprecated) fzf backend picker
+  show_i18n_keys_with_telescope()   (deprecated) Telescope backend picker
   next_locale()                     (internal; wrapped by :I18nNextLocale)
   options                           last merged options table
 

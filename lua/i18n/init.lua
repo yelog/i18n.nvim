@@ -4,6 +4,55 @@ local parser = require('i18n.parser')
 local display = require('i18n.display')
 local usages = require('i18n.usages')
 
+local function resolve_i18n_key_picker()
+  local opts = config.options or {}
+  local cfg = {}
+  if type(opts.i18n_keys) == 'table' then
+    cfg = opts.i18n_keys
+  elseif type(opts.fzf) == 'table' then
+    -- backward compatibility
+    cfg = opts.fzf
+  else
+    cfg = config.defaults.i18n_keys or {}
+  end
+
+  local popup_type = (cfg and cfg.popup_type) or 'fzf-lua'
+
+  local function fallback_warn(message)
+    vim.notify(message, vim.log.levels.WARN)
+  end
+
+  if popup_type == 'telescope' then
+    local ok, telescope = pcall(require, 'i18n.integration.telescope')
+    if ok and telescope.show_i18n_keys_with_telescope then
+      return function()
+        return telescope.show_i18n_keys_with_telescope({ suppress_deprecation = true })
+      end
+    else
+      fallback_warn('[i18n] telescope picker unavailable; falling back to fzf-lua implementation')
+    end
+  end
+
+  local ok_fzf, fzf_mod = pcall(require, 'i18n.integration.fzf')
+  if ok_fzf and fzf_mod.show_i18n_keys_with_fzf then
+    return function()
+      return fzf_mod.show_i18n_keys_with_fzf({ suppress_deprecation = true })
+    end
+  end
+
+  local ok_tel, telescope_mod = pcall(require, 'i18n.integration.telescope')
+  if ok_tel and telescope_mod.show_i18n_keys_with_telescope then
+    return function()
+      return telescope_mod.show_i18n_keys_with_telescope({ suppress_deprecation = true })
+    end
+  end
+
+  return function()
+    vim.notify('[i18n] No i18n key picker available (install fzf-lua or telescope)', vim.log.levels.WARN)
+    return false
+  end
+end
+
 M.setup = function(opts)
   config.setup(opts)
 
@@ -75,12 +124,19 @@ end
 M.next_locale = display.next_locale
 M.get_current_locale = display.get_current_locale
 
+M.i18n_keys = function()
+  local picker = resolve_i18n_key_picker()
+  return picker()
+end
+
 -- 代理 fzf 集成功能，统一从 i18n 导出
 M.show_i18n_keys_with_fzf = function()
+  vim.deprecate('require("i18n").show_i18n_keys_with_fzf', 'require("i18n").i18n_keys', '0.2.0')
   return require('i18n.integration.fzf').show_i18n_keys_with_fzf()
 end
 
 M.show_i18n_keys_with_telescope = function()
+  vim.deprecate('require("i18n").show_i18n_keys_with_telescope', 'require("i18n").i18n_keys', '0.2.0')
   return require('i18n.integration.telescope').show_i18n_keys_with_telescope()
 end
 

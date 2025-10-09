@@ -267,7 +267,8 @@ M.defaults = {
     'jsx',
     'java',
   },
-  fzf = {
+  i18n_keys = {
+    popup_type = 'fzf-lua', -- fzf-lua | telescope
     -- Action key mappings (multiple trigger keys allowed as multiple strings in the array)
     -- Use Vim-style notation (<cr>, <c-j>, etc.); they will be converted to keys recognized by fzf
     keys = {

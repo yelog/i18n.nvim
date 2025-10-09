@@ -106,17 +106,17 @@ Example configuration using lazy.nvim:
 
 Recommended keymaps (example using lazy-loaded setup):
 ```lua
--- Fuzzy find i18n keys (fzf integration)
-vim.keymap.set("n", "<leader>if", require("i18n").show_i18n_keys_with_fzf, { desc = "Fuzzy find i18n key" })
--- Actions inside the picker (defaults / Vim style key notation):
+-- Browse i18n keys (backend controlled via `i18n_keys.popup_type`)
+vim.keymap.set("n", "<leader>ik", require("i18n").i18n_keys, { desc = "Browse i18n keys" })
+-- When using the default fzf-lua backend the picker supports:
 --  <CR>    : copy key
 --  <C-y>   : copy current locale translation
---  <C-j>   : jump (current display locale, fallback default)
+--  <C-j>   : jump (current locale first, fallback default)
 --  <C-l>   : choose locale then jump (secondary picker)
 --  <C-x>   : horizontal split jump
 --  <C-v>   : vertical split jump
 --  <C-t>   : tab jump
--- You can override these in setup(): fzf.keys = { jump = { "<c-j>" }, choose_locale_jump = { "<c-l>" } }
+-- Override these in setup(): i18n_keys.keys = { jump = { "<c-j>" }, choose_locale_jump = { "<c-l>" } }
 ```
 
 
@@ -264,29 +264,9 @@ Setup (lazy.nvim example):
 }
 ```
 
-Keymap example:
-```lua
-vim.keymap.set("n", "<leader>ik", require("i18n").show_i18n_keys_with_telescope,
-  { desc = "Search i18n key (Telescope)" })
-```
-
-Actions (default mappings inside the picker):
-- <CR>: copy key
-- <C-y>: copy current locale translation
-- <C-j>: jump (current display locale first, fallback default locale)
-- <C-l>: choose locale then jump (secondary picker)
-- <C-x>: horizontal split jump
-- <C-v>: vertical split jump
-- <C-t>: tab jump  
-Press ? inside Telescope for standard help; these mappings are attached programmatically (they do not modify your global Telescope defaults).
-
-Preview panel:
-- Shows the key and all configured locales.
-- Marks current display locale with an asterisk (*).
-- Missing translations are shown as: <Missing translation>.
-
-If you also enabled the fzf integration you can keep both; each is independent.  
-You can reuse the same config.locales and sources; no additional setup is required.
+To switch the picker to Telescope, set `i18n_keys = { popup_type = 'telescope' }` in your setup (or project config).  
+The same keymap above will now open the Telescope UI; press `?` inside the picker to view the standard Telescope help.  
+The legacy helpers `show_i18n_keys_with_fzf()` / `show_i18n_keys_with_telescope()` are still available but deprecated in favor of `i18n_keys()`.
 
 ## ⚙️ Configuration
 

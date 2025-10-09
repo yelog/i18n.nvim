@@ -43,6 +43,17 @@ local function get_current_locale()
   return locales[1]
 end
 
+local function get_cfg()
+  local opts = config.options or {}
+  if type(opts.i18n_keys) == 'table' then
+    return opts.i18n_keys
+  end
+  if type(opts.fzf) == 'table' then
+    return opts.fzf
+  end
+  return config.defaults.i18n_keys or {}
+end
+
 local function build_preview_lines(key)
   if not key then return { "No key" } end
   local locales = get_locales()
@@ -50,7 +61,7 @@ local function build_preview_lines(key)
   local meta = parser.meta or {}
   local cur = get_current_locale()
   local def = locales[1]
-  local cfg = (config.options and config.options.fzf) or {}
+  local cfg = get_cfg()
   local show_missing = cfg.show_missing ~= false
   local missing_placeholder = "<Missing translation>"
 
@@ -86,7 +97,18 @@ local function build_preview_lines(key)
       local rel = vim.fn.fnamemodify(m.file, ":.")
       pos = string.format(" (%s:%d)", rel, m.line or 1)
     end
-    table.insert(lines, string.format("%s:%s %s%s", l, mark, text or "", pos))
+    local chunks = vim.split(text or "", "\n", { plain = true })
+    if #chunks == 0 then
+      chunks = { "" }
+    end
+    for idx, chunk in ipairs(chunks) do
+      chunk = chunk:gsub("\r", "")
+      if idx == 1 then
+        table.insert(lines, string.format("%s:%s %s%s", l, mark, chunk, pos))
+      else
+        table.insert(lines, string.format("   %s %s", mark ~= "" and " " or " ", chunk))
+      end
+    end
   end
   return lines
 end
@@ -218,7 +240,15 @@ end
 ---------------------------------------------------------------------
 -- Main picker
 ---------------------------------------------------------------------
-function M.show_i18n_keys_with_telescope()
+function M.show_i18n_keys_with_telescope(opts)
+  opts = opts or {}
+  if not opts.suppress_deprecation then
+    vim.deprecate(
+      'require("i18n.integration.telescope").show_i18n_keys_with_telescope',
+      'require("i18n").i18n_keys',
+      '0.2.0'
+    )
+  end
   local current_locale = get_current_locale()
   local entries = collect_keys(current_locale)
   if #entries == 0 then
@@ -233,7 +263,9 @@ function M.show_i18n_keys_with_telescope()
         return
       end
       local lines = build_preview_lines(entry.value)
+      vim.api.nvim_buf_set_option(self.state.bufnr, 'modifiable', true)
       vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, lines)
+      vim.api.nvim_buf_set_option(self.state.bufnr, 'modifiable', false)
     end
   }
 
@@ -275,7 +307,7 @@ function M.show_i18n_keys_with_telescope()
         local k = explicit_key or get_key()
         if not k then return end
         local locales = get_locales()
-        local cfg = ((config.options or {}).fzf or {}).jump or {}
+        local cfg = (get_cfg().jump or {})
         local cur = get_current_locale()
         local prefer_cur = cfg.prefer_current_locale ~= false
         local tried = false

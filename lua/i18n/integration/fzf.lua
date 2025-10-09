@@ -11,7 +11,15 @@ local M = {}
 -- 工具函数
 ---------------------------------------------------------------------
 local function get_cfg()
-  return (config.options and config.options.fzf) or {}
+  local opts = config.options or {}
+  if type(opts.i18n_keys) == 'table' then
+    return opts.i18n_keys
+  end
+  -- backward compatibility with legacy `fzf` configuration table
+  if type(opts.fzf) == 'table' then
+    return opts.fzf
+  end
+  return config.defaults.i18n_keys or {}
 end
 
 local function get_locales()
@@ -259,7 +267,16 @@ end
 ---------------------------------------------------------------------
 -- 主入口
 ---------------------------------------------------------------------
-function M.show_i18n_keys_with_fzf()
+function M.show_i18n_keys_with_fzf(opts)
+  opts = opts or {}
+  if not opts.suppress_deprecation then
+    vim.deprecate(
+      'require("i18n.integration.fzf").show_i18n_keys_with_fzf',
+      'require("i18n").i18n_keys',
+      '0.2.0'
+    )
+  end
+
   local translations = parser.translations or {}
   local keys_map = {}
   for _, locale_tbl in pairs(translations) do
