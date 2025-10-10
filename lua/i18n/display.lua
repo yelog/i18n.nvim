@@ -16,6 +16,9 @@ M._popup_buf = nil
 -- 当前显示语言索引（基于 config.locales）
 M._current_locale_index = 1
 
+-- 光标行缓存，避免重复刷新
+M._cursor_state = {}
+
 -- 获取当前语言
 M.get_current_locale = function()
   local locales = (config.options or {}).locales or {}
@@ -97,6 +100,33 @@ local function is_supported_ft(bufnr)
     yaml = true,
   }
   return default[ft] == true
+end
+
+local function detect_buffer_locale(bufnr)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  local buf_path = vim.api.nvim_buf_get_name(bufnr)
+  local abs_path = vim.loop.fs_realpath(buf_path) or buf_path
+
+  local file_locale = nil
+  for _, loc in ipairs((config.options or {}).locales or {}) do
+    local fp = parser.file_prefixes[loc]
+    if fp then
+      if fp[abs_path] then
+        file_locale = loc
+        break
+      end
+      for stored_path, _ in pairs(fp) do
+        local stored_abs = vim.loop.fs_realpath(stored_path) or vim.fn.fnamemodify(stored_path, ":p")
+        if stored_abs == abs_path then
+          file_locale = loc
+          break
+        end
+      end
+      if file_locale then break end
+    end
+  end
+
+  return file_locale, abs_path
 end
 
 local function extract_i18n_keys(_, line_num, line, patterns, comment_checker)
@@ -203,34 +233,64 @@ local function set_eol_virtual_text(bufnr, line_num, text)
   end
 end
 
+local function refresh_lines_for_cursor(bufnr, line_nums, cursor_line)
+  if not vim.api.nvim_buf_is_valid(bufnr) then return end
+  if not line_nums or #line_nums == 0 then return end
+
+  local unique = {}
+  local ordered = {}
+  for _, line_num in ipairs(line_nums) do
+    if type(line_num) == 'number' and line_num >= 1 and not unique[line_num] then
+      unique[line_num] = true
+      table.insert(ordered, line_num)
+    end
+  end
+  if #ordered == 0 then return end
+
+  local show_mode = get_show_mode()
+  local default_locale = M.get_current_locale()
+  local patterns = config.options.func_pattern
+  local comment_checker = utils.make_comment_checker(bufnr)
+
+  for _, line_num in ipairs(ordered) do
+    local line = vim.api.nvim_buf_get_lines(bufnr, line_num - 1, line_num, false)[1]
+    vim.api.nvim_buf_clear_namespace(bufnr, ns, line_num - 1, line_num)
+    if not line then
+      goto continue
+    end
+    local keys = extract_i18n_keys(bufnr, line_num, line, patterns, comment_checker)
+    local is_cursor_line = cursor_line and line_num == cursor_line
+    for _, key_info in ipairs(keys) do
+      local translation = parser.get_translation(key_info.key, default_locale)
+      if translation then
+        local show_translation_line = should_show_translation(show_mode, is_cursor_line)
+        local hide_origin_line = should_hide_origin(show_mode, is_cursor_line)
+
+        if show_translation_line then
+          set_virtual_text(bufnr, line_num - 1, key_info.end_pos, translation, not hide_origin_line)
+        end
+
+        if hide_origin_line then
+          local s, e, _, key = line:find("(['\"])([^'\"]+)['\"]", key_info.start_pos)
+          if s and e and key == key_info.key then
+            vim.api.nvim_buf_set_extmark(bufnr, ns, line_num - 1, s - 1, {
+              end_col = e,
+              conceal = "",
+            })
+          end
+        end
+      end
+    end
+    ::continue::
+  end
+end
+
 -- 刷新缓冲区显示
 M.refresh_buffer = function(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
 
   -- 提前判定是否为翻译文件：即属于任一 locale 的已解析文件
-  local buf_path = vim.api.nvim_buf_get_name(bufnr)
-  local abs_path = vim.loop.fs_realpath(buf_path) or buf_path
-
-  local file_locale = nil
-  for _, loc in ipairs((config.options or {}).locales or {}) do
-    local fp = parser.file_prefixes[loc]
-    if fp then
-      -- 先直接匹配绝对路径
-      if fp[abs_path] then
-        file_locale = loc
-        break
-      end
-      -- 回退：尝试把已存路径 realpath 后比较（兼容旧数据未存绝对路径的情况）
-      for stored_path, _ in pairs(fp) do
-        local stored_abs = vim.loop.fs_realpath(stored_path) or vim.fn.fnamemodify(stored_path, ":p")
-        if stored_abs == abs_path then
-          file_locale = loc
-          break
-        end
-      end
-      if file_locale then break end
-    end
-  end
+  local file_locale, abs_path = detect_buffer_locale(bufnr)
 
   -- 若不是支持的代码文件且也不是翻译文件，则直接返回
   if (not is_supported_ft(bufnr)) and (not file_locale) then
@@ -421,6 +481,9 @@ M.refresh_buffer = function(bufnr)
       end
     end
   end
+  if cursor_line then
+    M._cursor_state[bufnr] = cursor_line
+  end
   if vim.diagnostic then
     if diag_enabled then
       if diagnostics and #diagnostics > 0 then
@@ -608,7 +671,31 @@ M.setup_replace_mode = function()
     pattern = '*',
     callback = function(args)
       if not is_supported_ft(args.buf) then return end
-      M.refresh_buffer(args.buf)
+      if vim.api.nvim_get_current_buf() ~= args.buf then return end
+
+      local show_mode = get_show_mode()
+      if show_mode == 'origin' or show_mode == 'both' then
+        local cursor = vim.api.nvim_win_get_cursor(0)
+        M._cursor_state[args.buf] = cursor[1]
+        return
+      end
+
+      local file_locale = detect_buffer_locale(args.buf)
+      if file_locale then
+        local cursor = vim.api.nvim_win_get_cursor(0)
+        M._cursor_state[args.buf] = cursor[1]
+        return
+      end
+
+      local cursor = vim.api.nvim_win_get_cursor(0)
+      local current_line = cursor[1]
+      local prev_line = M._cursor_state[args.buf]
+      if prev_line == current_line then
+        return
+      end
+
+      refresh_lines_for_cursor(args.buf, { prev_line, current_line }, current_line)
+      M._cursor_state[args.buf] = current_line
     end
   })
 end
