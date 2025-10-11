@@ -1,1 +1,3 @@
 WRN 2025-10-09T21:54:48.344 ?.65818    server_start:193: Failed to start server: operation not permitted: /var/folders/d9/5sfcnz292bvbdh3nv19rvhc40000gn/T/nvim.yelog/ICxKXA/nvim.65818.0
+WRN 2025-10-11T14:01:29.441 ?.41281    server_start:193: Failed to start server: operation not permitted: /var/folders/d9/5sfcnz292bvbdh3nv19rvhc40000gn/T/nvim.yelog/VTU3zQ/nvim.41281.0
+WRN 2025-10-11T14:01:29.499 ?.41281    server_start:193: Failed to start server: operation not permitted: /var/folders/d9/5sfcnz292bvbdh3nv19rvhc40000gn/T/nvim.yelog/VTU3zQ/fzf-lua.1760162489.41281.1

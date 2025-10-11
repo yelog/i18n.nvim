@@ -319,6 +319,7 @@ Common options (all optional when a project file is present):
 
 Diagnostics
 If `diagnostic` is enabled (true or a table), the plugin emits diagnostics for missing translations at the position of the i18n key. When a table is provided, it is forwarded verbatim to `vim.diagnostic.set(namespace, bufnr, diagnostics, opts)` allowing you to tune presentation (underline, virtual_text, signs, severity_sort, etc). Setting `diagnostic = false` both suppresses generation and clears previously shown diagnostics for the buffer.
+Dynamic keys built via string concatenation or Lua `..` are ignored to avoid false positives (e.g. `t('user.' .. segment)` or `t('system.user.' + item)`).
 
 Patterns support placeholders like `{locales}` and custom variables such as `{module}` which will be expanded by scanning the project tree.
 

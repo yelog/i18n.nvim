@@ -129,6 +129,32 @@ local function detect_buffer_locale(bufnr)
   return file_locale, abs_path
 end
 
+local function is_dynamic_suffix(line, end_pos)
+  if type(line) ~= 'string' or type(end_pos) ~= 'number' then
+    return false
+  end
+  if end_pos >= #line then
+    return false
+  end
+  local remainder = line:sub(end_pos + 1)
+  if not remainder or remainder == '' then
+    return false
+  end
+  local trimmed = remainder:match('^%s*(.*)$')
+  if not trimmed or trimmed == '' then
+    return false
+  end
+  local first_char = trimmed:sub(1, 1)
+  local first_two = trimmed:sub(1, 2)
+  if first_char == '+' or first_char == '[' then
+    return true
+  end
+  if first_two == '..' then
+    return true
+  end
+  return false
+end
+
 local function extract_i18n_keys(_, line_num, line, patterns, comment_checker)
   local keys = {}
   local occupied = {}
@@ -179,6 +205,7 @@ local function extract_i18n_keys(_, line_num, line, patterns, comment_checker)
               end_pos = end_pos,             -- 整个匹配结束
               key_start_pos = key_start_pos, -- 仅 key（不含引号等）
               key_end_pos = key_end_pos,
+              dynamic = is_dynamic_suffix(line, end_pos),
             })
             for i = start_pos, end_pos do
               occupied[i] = true
@@ -261,22 +288,24 @@ local function refresh_lines_for_cursor(bufnr, line_nums, cursor_line)
     local keys = extract_i18n_keys(bufnr, line_num, line, patterns, comment_checker)
     local is_cursor_line = cursor_line and line_num == cursor_line
     for _, key_info in ipairs(keys) do
-      local translation = parser.get_translation(key_info.key, default_locale)
-      if translation then
-        local show_translation_line = should_show_translation(show_mode, is_cursor_line)
-        local hide_origin_line = should_hide_origin(show_mode, is_cursor_line)
+      if not key_info.dynamic then
+        local translation = parser.get_translation(key_info.key, default_locale)
+        if translation then
+          local show_translation_line = should_show_translation(show_mode, is_cursor_line)
+          local hide_origin_line = should_hide_origin(show_mode, is_cursor_line)
 
-        if show_translation_line then
-          set_virtual_text(bufnr, line_num - 1, key_info.end_pos, translation, not hide_origin_line)
-        end
+          if show_translation_line then
+            set_virtual_text(bufnr, line_num - 1, key_info.end_pos, translation, not hide_origin_line)
+          end
 
-        if hide_origin_line then
-          local s, e, _, key = line:find("(['\"])([^'\"]+)['\"]", key_info.start_pos)
-          if s and e and key == key_info.key then
-            vim.api.nvim_buf_set_extmark(bufnr, ns, line_num - 1, s - 1, {
-              end_col = e,
-              conceal = "",
-            })
+          if hide_origin_line then
+            local s, e, _, key = line:find("(['\"])([^'\"]+)['\"]", key_info.start_pos)
+            if s and e and key == key_info.key then
+              vim.api.nvim_buf_set_extmark(bufnr, ns, line_num - 1, s - 1, {
+                end_col = e,
+                conceal = "",
+              })
+            end
           end
         end
       end
@@ -438,6 +467,10 @@ M.refresh_buffer = function(bufnr)
     -- vim.notify("keys: " .. vim.inspect(keys), vim.log.levels.DEBUG)
     local is_cursor_line = cursor_line and line_num == cursor_line
     for _, key_info in ipairs(keys) do
+      if key_info.dynamic then
+        goto continue_key
+      end
+
       local translation = parser.get_translation(key_info.key, default_locale)
 
       local show_translation_line = false
@@ -479,6 +512,7 @@ M.refresh_buffer = function(bufnr)
           })
         end
       end
+      ::continue_key::
     end
   end
   if cursor_line then
@@ -512,6 +546,9 @@ function M.get_key_under_cursor()
   local keys = extract_i18n_keys(bufnr, cursor[1], line, patterns, comment_checker)
   local cur_col1 = cursor[2] + 1 -- 转为 1-based 列
   for _, key_info in ipairs(keys) do
+    if key_info.dynamic then
+      goto continue_key
+    end
     -- 仅允许在 key 及其包裹引号范围内触发（排除函数名 t( 及右括号位置）
     local ks = key_info.key_start_pos or key_info.start_pos
     local ke = key_info.key_end_pos or key_info.end_pos
@@ -529,6 +566,7 @@ function M.get_key_under_cursor()
     if cur_col1 >= allowed_start and cur_col1 <= allowed_end then
       return key_info.key
     end
+    ::continue_key::
   end
   return nil
 end

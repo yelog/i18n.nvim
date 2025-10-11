@@ -293,6 +293,8 @@ If `diagnostic` is:
   false -> clear + disable generation
   true  -> enable default ERROR severity for missing translation
   table -> forwarded as opts to vim.diagnostic.set
+Dynamic keys constructed through concatenation (e.g. `t('user.' .. segment)` or
+`t('system.user.' + item)`) are ignored to avoid false positives.
 
 Example disabling underline & virtual text: >
   require('i18n').setup({
