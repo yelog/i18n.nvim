@@ -217,6 +217,8 @@ Function: >
 
 Falls back gracefully if no key; combine with LSP (see keymaps above).
 Line numbers heuristic for non-TS/JS; Tree-sitter gives better accuracy.
+Silence the "[i18n] No i18n key detected under cursor" warning by setting
+`usage = { notify_no_key = false }` in |i18n.nvim-config|.
 
 ==============================================================================
 POPUP                                                    *i18n.nvim-popup*

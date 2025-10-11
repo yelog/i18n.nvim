@@ -297,6 +297,7 @@ Common options (all optional when a project file is present):
 - func_type: filetype or glob list scanned for usage counts (defaults to
   `{ 'vue', 'typescript', 'javascript', 'typescriptreact', 'javascriptreact', 'tsx', 'jsx', 'java' }`)
 - usage.popup_type: picker shown when a key has multiple usages (`vim_ui` | `telescope` | `fzf-lua` | `snacks`, default `vim_ui`)
+- usage.notify_no_key: whether to warn when `:I18nKeyUsages` finds no key under the cursor (default `true`)
 - i18n_keys.popup_type: picker backend for browsing keys (`fzf-lua` | `telescope` | `vim_ui` | `snacks`, default `fzf-lua`)
 - show_mode: controls inline rendering (`both` | `translation` | `translation_conceal` | `origin`; defaults to `both` when unset/unknown). `both` appends the translation after the raw key on every line. `translation` hides the key except on the cursor line (where both are shown). `translation_conceal` hides the key and suppresses the translation on the cursor line so you can edit the raw key comfortably. `origin` disables the overlay entirely.
 - show_locale_file_eol_usage: toggle usage badges in locale buffers (default `true`)
@@ -372,6 +373,7 @@ responsive while usage counts backfill in the background.
 - `:I18nKeyUsages` or `require('i18n').i18n_key_usages()` inspects the key under the cursor: one usage jumps immediately; multiple usages open your configured picker.
 - Saved buffers matching `func_type` are rescanned automatically; trigger a background rescan with `require('i18n').refresh_usages()` if you tweak configuration on the fly (pass `{ sync = true }` to block until completion).
 - Set `usage = { popup_type = 'telescope' | 'fzf-lua' | 'snacks' | 'vim_ui' }` to reuse your preferred picker when resolving multiple usages.
+- Silence the missing-key warning with `usage = { notify_no_key = false }` if you prefer quiet fallbacks.
 - Adjust highlight links via `:hi I18nUsageLabel`, `:hi I18nUsageTranslation`, and `:hi I18nUsageSeparator` if you prefer different colors.
 
 Example keymap that tries the i18n usage jump first, then falls back to LSP references (mirrors the `gd` example above):

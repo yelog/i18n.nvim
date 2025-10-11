@@ -309,6 +309,8 @@ M.defaults = {
     -- Popup provider used when choosing between multiple usage locations
     -- Available values: 'vim_ui', 'telescope', 'fzf-lua', 'snacks'
     popup_type = 'fzf-lua',
+    -- 是否在未检测到光标下 key 时提示
+    notify_no_key = true,
   },
   -- Filetypes/extensions to scan when collecting key usages in project source files
   func_type = {

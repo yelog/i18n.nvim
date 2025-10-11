@@ -36,6 +36,15 @@ local ft_to_ts = {
   lua = 'lua',
 }
 
+local function should_notify_no_key()
+  local opts = config.options or {}
+  local usage_opts = opts.usage
+  if type(usage_opts) ~= 'table' or usage_opts.notify_no_key == nil then
+    return true
+  end
+  return usage_opts.notify_no_key ~= false
+end
+
 M.usages = {}
 M.file_index = {}
 M._setup_done = false
@@ -1058,7 +1067,9 @@ end
 
 function M.jump_to_usage(key)
   if not key or key == '' then
-    vim.notify('[i18n] No i18n key detected under cursor', vim.log.levels.WARN)
+    if should_notify_no_key() then
+      vim.notify('[i18n] No i18n key detected under cursor', vim.log.levels.WARN)
+    end
     return false
   end
   local entries = M.get_usages_for_key(key)
@@ -1081,7 +1092,9 @@ end
 function M.jump_under_cursor()
   local key = detect_key_at_cursor()
   if not key then
-    vim.notify('[i18n] No i18n key detected under cursor', vim.log.levels.WARN)
+    if should_notify_no_key() then
+      vim.notify('[i18n] No i18n key detected under cursor', vim.log.levels.WARN)
+    end
     return false
   end
   return M.jump_to_usage(key)
