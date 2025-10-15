@@ -230,6 +230,10 @@ local function set_virtual_text(bufnr, line_num, col, text, origin_visible)
   -- extmark col 为 0-based，且不能超过行长度
   local line_len = #line
   local col0 = math.max(0, math.min((col or 0) - 1, line_len))
+  local char_at = line:sub(col0 + 1, col0 + 1)
+  if char_at == "'" or char_at == '"' or char_at == '`' then
+    col0 = math.min(line_len, col0 + 1)
+  end
   local prefix = origin_visible and ": " or ""
   local ok = pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, line_num, col0, {
     virt_text = { { prefix .. text, "Comment" } },
