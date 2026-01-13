@@ -714,7 +714,7 @@ function M.add_key_interactive()
     end
   end
 
-  map("<Esc>", cancel)
+  vim.keymap.set({ "n" }, "<Esc>", cancel, { buffer = buf, nowait = true, silent = true })
   map("<C-c>", cancel)
 
   local function save_and_close()
