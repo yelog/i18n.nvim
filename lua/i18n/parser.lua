@@ -585,13 +585,59 @@ M.load_translations = function()
   M._setup_file_watchers()
 end
 
+-- Convert flattened key-value pairs to nested table structure
+-- Input:  { "name" = "xiaoming", "detail.age" = 18, "detail.city" = "Beijing" }
+-- Output: { name = "xiaoming", detail = { age = 18, city = "Beijing" } }
+local function build_nested_object(flat_table)
+  local result = {}
+  for key, value in pairs(flat_table) do
+    local parts = vim.split(key, '.', { plain = true })
+    local current = result
+    for i = 1, #parts - 1 do
+      local part = parts[i]
+      if current[part] == nil then
+        current[part] = {}
+      end
+      current = current[part]
+    end
+    current[parts[#parts]] = value
+  end
+  return result
+end
+
 -- 获取特定语言的翻译
 M.get_translation = function(key, locale)
   local locales = config.options.locales
   locale = locale or (locales and locales[1])
-  if M.translations[locale] and M.translations[locale][key] then
+  if not M.translations[locale] then
+    return nil
+  end
+
+  -- 1. Try exact match first (leaf node)
+  if M.translations[locale][key] then
     return M.translations[locale][key]
   end
+
+  -- 2. Check if key is a prefix of other keys
+  local prefix = key .. '.'
+  local children = {}
+  for full_key, value in pairs(M.translations[locale]) do
+    if full_key:sub(1, #prefix) == prefix then
+      -- Extract the remaining key part after the prefix
+      local child_key = full_key:sub(#prefix + 1)
+      children[child_key] = value
+    end
+  end
+
+  -- 3. If children found, build nested object and return as JSON
+  if not vim.tbl_isempty(children) then
+    local nested = build_nested_object(children)
+    local ok, json = pcall(vim.json.encode, nested)
+    if ok then
+      return json
+    end
+  end
+
   return nil
 end
 
@@ -599,8 +645,26 @@ end
 M.get_all_translations = function(key)
   local result = {}
   for locale, translations in pairs(M.translations) do
+    -- Try exact match first
     if translations[key] then
       result[locale] = translations[key]
+    else
+      -- Try prefix match
+      local prefix = key .. '.'
+      local children = {}
+      for full_key, value in pairs(translations) do
+        if full_key:sub(1, #prefix) == prefix then
+          local child_key = full_key:sub(#prefix + 1)
+          children[child_key] = value
+        end
+      end
+      if not vim.tbl_isempty(children) then
+        local nested = build_nested_object(children)
+        local ok, json = pcall(vim.json.encode, nested)
+        if ok then
+          result[locale] = json
+        end
+      end
     end
   end
   return result
