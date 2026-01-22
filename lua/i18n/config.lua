@@ -291,6 +291,17 @@ M.defaults = {
   -- Whether to append usage counts in locale files alongside translations
   show_locale_file_eol_usage = true,
   diagnostics = true,
+  -- Namespace resolver for frameworks like react-i18next that use useTranslation('namespace')
+  -- Options:
+  --   false           : disabled (default)
+  --   'auto'          : auto-detect based on filetype
+  --   'react_i18next' : React i18next (useTranslation)
+  --   'vue_i18n'      : Vue i18n (useI18n)
+  --   function        : custom function(bufnr, key, line, col) -> namespace|nil
+  --   table           : per-filetype config, e.g. { { filetypes = {'tsx'}, resolver = 'react_i18next' } }
+  namespace_resolver = 'auto',
+  -- Separator between namespace and key (default ':' for i18next standard)
+  namespace_separator = '.',
   -- func_pattern accepts user-friendly function descriptors or raw Lua patterns.
   -- Examples:
   --   { 't', '$t' }

@@ -8,6 +8,7 @@
 local parser_ok, parser = pcall(require, "i18n.parser")
 local config_ok, config = pcall(require, "i18n.config")
 local utils_ok, utils = pcall(require, "i18n.utils")
+local namespace_ok, namespace_mod = pcall(require, "i18n.namespace")
 
 local source = {}
 source.__index = source
@@ -200,16 +201,47 @@ function source:complete(params, callback)
     self._cache_len = #keys
   end
 
+  -- Detect namespace from context (e.g., useTranslation('myns'))
+  local current_namespace = nil
+  local ns_separator = ':'
+  if namespace_ok and namespace_mod and config_ok then
+    ns_separator = (config.options and config.options.namespace_separator) or ':'
+    if namespace_mod.resolve_namespace_only and bufnr and cursor then
+      local ok_ns, ns = pcall(namespace_mod.resolve_namespace_only, bufnr, cursor[1], cursor[2])
+      if ok_ns and ns then
+        current_namespace = ns
+      end
+    end
+  end
+
   local items = {}
   for _, k in ipairs(self._cache) do
+    local display_key = k
+    local insert_key = k
+    local full_key = k
+
+    -- If namespace is detected, filter and transform keys
+    if current_namespace then
+      local ns_prefix = current_namespace .. ns_separator
+      if k:sub(1, #ns_prefix) == ns_prefix then
+        -- Key matches namespace: show/insert without namespace prefix
+        display_key = k:sub(#ns_prefix + 1)
+        insert_key = display_key
+      else
+        -- Key doesn't match namespace: skip it
+        goto continue_key
+      end
+    end
+
     items[#items + 1] = {
-      label = k,
-      insertText = k,
-      filterText = k,
-      sortText = k,
-      data = { key = k },
+      label = display_key,
+      insertText = insert_key,
+      filterText = display_key,
+      sortText = display_key,
+      data = { key = full_key, display_key = display_key },
       kind = 1,
     }
+    ::continue_key::
   end
 
   callback(items)
@@ -220,6 +252,7 @@ function source:resolve(completion_item, callback)
   if not parser_ok or not config_ok then
     return callback(completion_item)
   end
+  -- Use full key for translation lookup (handles namespace-filtered items)
   local key = (completion_item.data and completion_item.data.key) or completion_item.label
   local locales = (config.options and config.options.locales) or {}
   local trans = {}

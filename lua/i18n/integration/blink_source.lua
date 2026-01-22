@@ -3,6 +3,7 @@ local async = require "blink.cmp.lib.async"
 local config
 local i18n_items
 local utils_ok, utils = pcall(require, "i18n.utils")
+local namespace_ok, namespace_mod = pcall(require, "i18n.namespace")
 
 ---Include the trigger character when accepting a completion.
 ---@param context blink.cmp.Context
@@ -190,10 +191,47 @@ function M:get_completions(context, callback)
   local prefix = before:match("['\"]([^'\"]*)$")
   context._i18n_prefix_len = prefix and #prefix or 0
 
+  -- Detect namespace from context (e.g., useTranslation('myns'))
+  local current_namespace = nil
+  local ns_separator = ':'
+  local ok_cfg, plugin_cfg = pcall(require, "i18n.config")
+  if ok_cfg and plugin_cfg.options then
+    ns_separator = plugin_cfg.options.namespace_separator or ':'
+  end
+  if namespace_ok and namespace_mod and namespace_mod.resolve_namespace_only then
+    local bufnr = vim.api.nvim_get_current_buf()
+    local cursor = context.cursor
+    local ok_ns, ns = pcall(namespace_mod.resolve_namespace_only, bufnr, cursor[1], cursor[2])
+    if ok_ns and ns then
+      current_namespace = ns
+    end
+  end
+
   local items = i18n_items
+  -- If namespace detected, filter and transform items
+  if current_namespace then
+    local ns_prefix = current_namespace .. ns_separator
+    local namespace_filtered = {}
+    for _, it in ipairs(i18n_items) do
+      local full_key = it.label
+      if full_key:sub(1, #ns_prefix) == ns_prefix then
+        local display_key = full_key:sub(#ns_prefix + 1)
+        table.insert(namespace_filtered, {
+          label = display_key,
+          insertText = display_key,
+          textEdit = { newText = display_key },
+          detail = display_key,
+          _full_key = full_key,
+        })
+      end
+    end
+    items = namespace_filtered
+  end
+
+  -- Apply user input prefix filter
   if prefix and prefix ~= "" then
     local filtered = {}
-    for _, it in ipairs(i18n_items) do
+    for _, it in ipairs(items) do
       if it.label:find(prefix, 1, true) then
         table.insert(filtered, it)
       end
@@ -227,14 +265,16 @@ function M:resolve(item, callback)
   local ok_config, cfg = pcall(require, "i18n.config")
   if ok_parser and ok_config and cfg.options and cfg.options then
     local locales = cfg.options.locales or {}
+    -- Use full key for translation lookup (handles namespace-filtered items)
+    local lookup_key = resolved._full_key or resolved.label
     local trans_tbl = {}
     if parser.get_all_translations then
-      trans_tbl = parser.get_all_translations(resolved.label) or {}
+      trans_tbl = parser.get_all_translations(lookup_key) or {}
     elseif parser.translations then
       for _, locale in ipairs(locales) do
         local locale_tbl = parser.translations[locale] or {}
-        if locale_tbl[resolved.label] then
-          trans_tbl[locale] = locale_tbl[resolved.label]
+        if locale_tbl[lookup_key] then
+          trans_tbl[locale] = locale_tbl[lookup_key]
         end
       end
     end

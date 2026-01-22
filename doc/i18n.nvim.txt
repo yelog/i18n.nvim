@@ -9,6 +9,7 @@ CONTENTS                                                *i18n.nvim-contents*
   4. Quickstart .......................... |i18n.nvim-quickstart|
   5. Configuration ....................... |i18n.nvim-config|
      5.1 Options Table ................... |i18n.nvim-options|
+     5.2 Namespace Resolver .............. |i18n.nvim-namespace|
   6. Project Config File ................. |i18n.nvim-project|
   7. Commands ............................ |i18n.nvim-commands|
   8. Keymaps ............................. |i18n.nvim-keymaps|
@@ -105,6 +106,12 @@ func_pattern      {string|table}
                           safe matchers, tables expose advanced tuning.
                           Raw Lua patterns remain supported (capture key in
                           group 1 when supplying your own patterns).
+namespace_resolver bool|string|function|table
+                          Detect namespace from framework hooks (e.g.
+                          useTranslation('ns')). See |i18n.nvim-namespace|.
+                          Values: false (default), 'auto', 'react_i18next',
+                          'vue_i18n', custom function, or per-filetype table.
+namespace_separator string  Separator between namespace and key (default ':')
 filetypes / ft    {string}  Restrict processing (defaults to
                           { 'vue','typescript','javascript','typescriptreact',
                           'javascriptreact','tsx','jsx','java' })
@@ -149,6 +156,49 @@ commented examples do not trigger completion, diagnostics, or other helpers.
 
 If every entry resolves to an empty matcher set, the defaults `{ 't', '$t' }`
 are reinstated and a warning is shown.
+
+------------------------------------------------------------------------------
+NAMESPACE RESOLVER                                   *i18n.nvim-namespace*
+
+For frameworks like react-i18next that use `useTranslation('namespace')` to
+scope translation keys, the plugin can automatically detect the namespace and
+prepend it to keys for lookup.
+
+Example React component: >
+  const { t } = useTranslation('common');
+  const message = t('greeting');  // Plugin resolves to 'common:greeting'
+<
+
+Configuration: >
+  require('i18n').setup({
+    namespace_resolver = 'auto',  -- or 'react_i18next', 'vue_i18n', etc.
+    namespace_separator = ':',    -- separator between namespace and key
+  })
+<
+
+Available resolver values:
+  false             Disabled (default), no namespace resolution
+  'auto'            Auto-detect framework based on filetype
+                    (tsx/jsx -> react_i18next, vue -> vue_i18n)
+  'react_i18next'   Detect useTranslation('namespace') in React components
+  'vue_i18n'        Detect useI18n({ namespace: '...' }) in Vue components
+  function          Custom function(bufnr, key, line, col) -> namespace|nil
+  table             Per-filetype configuration: >
+                      { { filetypes = {'tsx'}, resolver = 'react_i18next' } }
+<
+
+When namespace resolution is enabled:
+  - Display: Virtual text shows translations for the resolved key
+  - Navigation: Jump-to-definition uses the resolved key
+  - Completion: Keys are filtered to match the namespace; inserted without
+                the prefix (since useTranslation already provides it)
+  - Diagnostics: Missing translation warnings show the full resolved key
+
+Register custom resolvers programmatically: >
+  require('i18n.namespace').register_resolver('my_framework', function(bufnr, key, line, col)
+    return 'detected_namespace'  -- or nil if not found
+  end)
+<
 
 ==============================================================================
 PROJECT CONFIG FILE                                  *i18n.nvim-project*

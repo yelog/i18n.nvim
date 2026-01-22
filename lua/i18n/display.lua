@@ -3,6 +3,7 @@ local config = require('i18n.config')
 local parser = require('i18n.parser')
 local usages = require('i18n.usages')
 local utils = require('i18n.utils')
+local namespace = require('i18n.namespace')
 
 -- 命名空间
 local ns = vim.api.nvim_create_namespace('i18n_display')
@@ -293,7 +294,8 @@ local function refresh_lines_for_cursor(bufnr, line_nums, cursor_line)
     local is_cursor_line = cursor_line and line_num == cursor_line
     for _, key_info in ipairs(keys) do
       if not key_info.dynamic then
-        local translation = parser.get_translation(key_info.key, default_locale)
+        local resolved_key = namespace.resolve(bufnr, key_info.key, line_num, key_info.key_start_pos or key_info.start_pos)
+        local translation = parser.get_translation(resolved_key, default_locale)
         if translation then
           local show_translation_line = should_show_translation(show_mode, is_cursor_line)
           local hide_origin_line = should_hide_origin(show_mode, is_cursor_line)
@@ -475,7 +477,8 @@ M.refresh_buffer = function(bufnr)
         goto continue_key
       end
 
-      local translation = parser.get_translation(key_info.key, default_locale)
+      local resolved_key = namespace.resolve(bufnr, key_info.key, line_num, key_info.key_start_pos or key_info.start_pos)
+      local translation = parser.get_translation(resolved_key, default_locale)
 
       local show_translation_line = false
       if translation and should_show_translation(show_mode, is_cursor_line) then
@@ -499,7 +502,7 @@ M.refresh_buffer = function(bufnr)
           severity = type(diag_opt) == "table" and diag_opt.severity or
               (vim.diagnostic and vim.diagnostic.severity.ERROR) or 1,
           source = "i18n",
-          message = string.format("Missing translation: %s (%s)", key_info.key, default_locale or "default"),
+          message = string.format("Missing translation: %s (%s)", resolved_key, default_locale or "default"),
         })
       end
 
@@ -541,7 +544,10 @@ M.refresh_buffer = function(bufnr)
 end
 
 -- 返回光标下的 i18n key（没有则返回 nil）
-function M.get_key_under_cursor()
+-- @param resolve_ns boolean|nil - 是否解析 namespace（默认 true）
+-- @return string|nil - 解析后的完整 key，或原始 key（如果 resolve_ns 为 false）
+function M.get_key_under_cursor(resolve_ns)
+  if resolve_ns == nil then resolve_ns = true end
   local cursor = vim.api.nvim_win_get_cursor(0)
   local line = vim.api.nvim_get_current_line()
   local bufnr = vim.api.nvim_get_current_buf()
@@ -568,6 +574,9 @@ function M.get_key_under_cursor()
       allowed_end = ke + 1
     end
     if cur_col1 >= allowed_start and cur_col1 <= allowed_end then
+      if resolve_ns then
+        return namespace.resolve(bufnr, key_info.key, cursor[1], ks)
+      end
       return key_info.key
     end
     ::continue_key::

@@ -294,6 +294,10 @@ Common options (all optional when a project file is present):
 - func_pattern: names/specs describing translation call sites. Plain strings
   become safe matchers (e.g. `{ 't', '$t' }`); tables allow advanced control;
   raw Lua patterns are still accepted for legacy setups.
+- namespace_resolver: detect namespace from framework hooks like `useTranslation('ns')`.
+  Values: `false` (disabled, default), `'auto'`, `'react_i18next'`, `'vue_i18n'`,
+  custom function, or per-filetype table. See [Namespace Resolver](#-namespace-resolver-react-i18next--vue-i18n).
+- namespace_separator: separator between namespace and key (default `':'` for i18next standard)
 - func_type: filetype or glob list scanned for usage counts (defaults to
   `{ 'vue', 'typescript', 'javascript', 'typescriptreact', 'javascriptreact', 'tsx', 'jsx', 'java' }`)
 - usage.popup_type: picker shown when a key has multiple usages (`vim_ui` | `telescope` | `fzf-lua` | `snacks`, default `vim_ui`)
@@ -317,6 +321,55 @@ Common options (all optional when a project file is present):
   default; disable with `allow_arg_whitespace = false`.
 - You can still drop down to raw Lua patterns via the `pattern` / `patterns`
   keys when you need something exotic (ensure the key stays in capture group 1).
+
+### 🔧 Namespace Resolver (React i18next / Vue i18n)
+
+For frameworks like **react-i18next** that use `useTranslation('namespace')` to scope translation keys, the plugin can automatically detect the namespace and prepend it to keys for lookup.
+
+Example React component:
+```jsx
+const { t } = useTranslation('common');
+const message = t('greeting');  // Plugin resolves to 'common:greeting'
+```
+
+Configuration options:
+```lua
+require('i18n').setup({
+  -- Enable namespace resolution
+  namespace_resolver = 'auto',  -- or 'react_i18next', 'vue_i18n', custom function, or table
+
+  -- Separator between namespace and key (default ':' for i18next standard)
+  namespace_separator = ':',
+})
+```
+
+Available resolver values:
+- `false` (default): Disabled, no namespace resolution
+- `'auto'`: Auto-detect framework based on filetype (tsx/jsx → react_i18next, vue → vue_i18n)
+- `'react_i18next'`: Detect `useTranslation('namespace')` calls in React components
+- `'vue_i18n'`: Detect `useI18n({ namespace: '...' })` in Vue components
+- Custom function: `function(bufnr, key, line, col) return namespace_or_nil end`
+- Table: Per-filetype configuration:
+  ```lua
+  namespace_resolver = {
+    { filetypes = {'typescriptreact', 'javascriptreact'}, resolver = 'react_i18next' },
+    { filetypes = {'vue'}, resolver = 'vue_i18n' },
+  }
+  ```
+
+When namespace resolution is enabled:
+- **Display**: Virtual text shows translations for the resolved key (e.g., `common:greeting`)
+- **Navigation**: Jump-to-definition uses the resolved key to find the correct location
+- **Completion**: Suggestions are filtered to keys matching the current namespace, and inserted without the namespace prefix (since `useTranslation` already provides it)
+- **Diagnostics**: Missing translation warnings show the full resolved key
+
+You can also register custom resolvers programmatically:
+```lua
+require('i18n.namespace').register_resolver('my_framework', function(bufnr, key, line, col)
+  -- Custom logic to detect namespace
+  return 'detected_namespace' -- or nil if not found
+end)
+```
 
 Diagnostics
 If `diagnostic` is enabled (true or a table), the plugin emits diagnostics for missing translations at the position of the i18n key. When a table is provided, it is forwarded verbatim to `vim.diagnostic.set(namespace, bufnr, diagnostics, opts)` allowing you to tune presentation (underline, virtual_text, signs, severity_sort, etc). Setting `diagnostic = false` both suppresses generation and clears previously shown diagnostics for the buffer.
