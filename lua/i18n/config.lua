@@ -315,6 +315,19 @@ M.defaults = {
   sources = {
     "src/locales/{locales}.json",
   },
+  -- Auto-detect sources from project structure
+  -- When enabled (or when sources is empty), scans for locale directories automatically
+  -- Options:
+  --   false           : disabled
+  --   true            : enabled with default settings
+  --   { enabled = true, ... } : enabled with custom settings
+  -- Available settings:
+  --   root_dirs       : directories to scan (default: { 'src', 'app', 'lib', '.' })
+  --   locale_dir_names: names of locale directories (default: { 'locales', 'locale', 'i18n', 'lang', ... })
+  --   known_locales   : known locale codes for detection (default: { 'en', 'zh', 'en-US', 'zh-CN', ... })
+  --   extensions      : supported file extensions (default: { 'json', 'ts', 'js', 'yaml', 'yml', 'properties' })
+  --   max_depth       : max directory depth to scan (default: 6)
+  auto_detect = true,
   navigation = {},
   usage = {
     -- Popup provider used when choosing between multiple usage locations

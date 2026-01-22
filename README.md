@@ -291,6 +291,9 @@ Common options (all optional when a project file is present):
 - sources: array of file patterns or objects:
   * string pattern e.g. `src/locales/{locales}.json`
   * table: `{ pattern = "pattern", prefix = "optional.prefix." }`
+- auto_detect: automatically scan project structure to discover locale files.
+  Values: `false` (disabled), `true` (enabled with defaults), or `{ enabled = true, ... }` with custom settings.
+  See [Auto-detect Sources](#-auto-detect-sources).
 - func_pattern: names/specs describing translation call sites. Plain strings
   become safe matchers (e.g. `{ 't', '$t' }`); tables allow advanced control;
   raw Lua patterns are still accepted for legacy setups.
@@ -321,6 +324,63 @@ Common options (all optional when a project file is present):
   default; disable with `allow_arg_whitespace = false`.
 - You can still drop down to raw Lua patterns via the `pattern` / `patterns`
   keys when you need something exotic (ensure the key stays in capture group 1).
+
+### 🔍 Auto-detect Sources
+
+The plugin can automatically scan your project structure to discover locale files, eliminating the need to manually configure `sources`. This is especially useful for projects with complex or distributed i18n structures.
+
+**Basic usage** - just enable auto-detect:
+```lua
+require('i18n').setup({
+  auto_detect = true,
+  -- locales will also be auto-detected if not specified
+})
+```
+
+**Or with custom settings:**
+```lua
+require('i18n').setup({
+  auto_detect = {
+    enabled = true,
+    root_dirs = { 'src', 'app' },           -- directories to scan
+    locale_dir_names = { 'locales', 'i18n' }, -- names of locale directories
+    extensions = { 'json', 'ts' },           -- supported file extensions
+    max_depth = 6,                           -- max directory depth to scan
+  },
+})
+```
+
+**Supported directory structures:**
+
+The auto-detect feature recognizes common i18n patterns:
+
+```
+Pattern A: Locale as filename
+src/locales/en.json          → sources: ["src/locales/{locales}.json"]
+src/locales/zh.json
+
+Pattern B: Locale as directory with module files
+src/locales/en/common.ts     → sources: [{ pattern: "src/locales/{locales}/{module}.ts", prefix: "{module}." }]
+src/locales/en/system.ts
+src/locales/zh/common.ts
+
+Pattern C: Nested in views/business directories
+src/views/gmail/locales/en/inbox.ts    → sources: [{ pattern: "src/views/{bu}/locales/{locales}/{module}.ts", prefix: "{bu}.{module}." }]
+src/views/calendar/locales/en/events.ts
+```
+
+**How it works:**
+1. Scans `root_dirs` for directories named `locales`, `i18n`, `lang`, etc.
+2. Analyzes the structure to identify locale codes (en, zh, en-US, zh-CN, etc.)
+3. Determines if locales are directory names or file name components
+4. Generates appropriate `pattern` and `prefix` configurations
+5. Extracts the list of available locales
+
+**Notes:**
+- Auto-detect runs when `auto_detect = true` or when `sources` is empty/not configured
+- Detected locales are used only if `locales` is not explicitly configured
+- A notification shows what was detected on first load
+- Access detected configuration via `require('i18n.config').options._detected_sources`
 
 ### 🔧 Namespace Resolver (React i18next / Vue i18n)
 

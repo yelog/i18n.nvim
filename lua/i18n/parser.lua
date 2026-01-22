@@ -552,8 +552,56 @@ M.load_translations = function()
   M._translation_files = {}
   local options = config.options
 
-  for _, locale in ipairs(options.locales) do
-    local sources = options.sources or {}
+  -- Check if auto-detect should run
+  local auto_detect = require('i18n.auto_detect')
+  local sources = options.sources or {}
+  local locales = options.locales or {}
+
+  if auto_detect.should_auto_detect(options) then
+    local detect_opts = auto_detect.get_options(options)
+    local detected_sources, detected_locales = auto_detect.detect(detect_opts)
+
+    if detected_sources and #detected_sources > 0 then
+      sources = detected_sources
+      -- Store detected sources in options for reference
+      options._detected_sources = detected_sources
+
+      -- When auto_detect is enabled, always use detected locales if available
+      -- This is important because the locale directory names must match exactly
+      if detected_locales and #detected_locales > 0 then
+        locales = detected_locales
+        options._detected_locales = detected_locales
+      end
+
+      -- Notify user about auto-detection results (only once per session)
+      if not M._auto_detect_notified then
+        local source_count = #detected_sources
+        local locale_count = #locales
+        -- Build source info for notification
+        local source_info = {}
+        for _, src in ipairs(detected_sources) do
+          local pattern = type(src) == 'string' and src or src.pattern
+          table.insert(source_info, pattern)
+        end
+        vim.notify(
+          string.format('[i18n] Auto-detected %d source(s), %d locale(s)\n  Locales: %s\n  Sources: %s',
+            source_count, locale_count,
+            table.concat(locales, ', '),
+            table.concat(source_info, '\n           ')),
+          vim.log.levels.INFO
+        )
+        M._auto_detect_notified = true
+      end
+    else
+      -- Auto-detect was enabled but found nothing
+      if not M._auto_detect_notified then
+        vim.notify('[i18n] Auto-detect enabled but no locale directories found', vim.log.levels.WARN)
+        M._auto_detect_notified = true
+      end
+    end
+  end
+
+  for _, locale in ipairs(locales) do
     for _, source in ipairs(sources) do
       -- 判断 {module} 后面是文件后缀还是 /
       local pattern = type(source) == "string" and source

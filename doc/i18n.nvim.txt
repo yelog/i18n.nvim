@@ -9,7 +9,8 @@ CONTENTS                                                *i18n.nvim-contents*
   4. Quickstart .......................... |i18n.nvim-quickstart|
   5. Configuration ....................... |i18n.nvim-config|
      5.1 Options Table ................... |i18n.nvim-options|
-     5.2 Namespace Resolver .............. |i18n.nvim-namespace|
+     5.2 Auto-detect Sources ............. |i18n.nvim-auto-detect|
+     5.3 Namespace Resolver .............. |i18n.nvim-namespace|
   6. Project Config File ................. |i18n.nvim-project|
   7. Commands ............................ |i18n.nvim-commands|
   8. Keymaps ............................. |i18n.nvim-keymaps|
@@ -101,6 +102,10 @@ OPTIONS TABLE                                          *i18n.nvim-options*
 Name              Type       Description
 locales           {string}   Ordered locales; first = default
 sources           {string|table} Patterns with placeholders {locales} {module}
+auto_detect       bool|table Auto-detect sources from project structure.
+                          See |i18n.nvim-auto-detect|.
+                          Values: false (disabled), true (enabled with defaults),
+                          or table with custom settings.
 func_pattern      {string|table}
                           Function call names/specs; plain strings become
                           safe matchers, tables expose advanced tuning.
@@ -156,6 +161,56 @@ commented examples do not trigger completion, diagnostics, or other helpers.
 
 If every entry resolves to an empty matcher set, the defaults `{ 't', '$t' }`
 are reinstated and a warning is shown.
+
+------------------------------------------------------------------------------
+AUTO-DETECT SOURCES                                 *i18n.nvim-auto-detect*
+
+The plugin can automatically scan your project structure to discover locale
+files, eliminating the need to manually configure `sources`.
+
+Basic usage: >
+  require('i18n').setup({
+    auto_detect = true,
+    -- locales will also be auto-detected if not specified
+  })
+<
+
+With custom settings: >
+  require('i18n').setup({
+    auto_detect = {
+      enabled = true,
+      root_dirs = { 'src', 'app' },           -- directories to scan
+      locale_dir_names = { 'locales', 'i18n' }, -- locale directory names
+      extensions = { 'json', 'ts' },           -- supported extensions
+      max_depth = 6,                           -- max scan depth
+    },
+  })
+<
+
+Supported directory structures:
+
+  Pattern A: Locale as filename
+    src/locales/en.json    ->  sources: ["src/locales/{locales}.json"]
+    src/locales/zh.json
+
+  Pattern B: Locale as directory with module files
+    src/locales/en/common.ts  ->  sources: [{ pattern: "...", prefix: "{module}." }]
+    src/locales/zh/common.ts
+
+  Pattern C: Nested in views/business directories
+    src/views/gmail/locales/en/inbox.ts  ->  prefix: "{bu}.{module}."
+
+How it works:
+  1. Scans `root_dirs` for directories named `locales`, `i18n`, `lang`, etc.
+  2. Analyzes structure to identify locale codes (en, zh, en-US, zh-CN)
+  3. Determines if locales are directory names or file name components
+  4. Generates appropriate `pattern` and `prefix` configurations
+
+Notes:
+  - Auto-detect runs when `auto_detect = true` or `sources` is empty
+  - Detected locales used only if `locales` not explicitly configured
+  - Notification shows detection results on first load
+  - Access via `require('i18n.config').options._detected_sources`
 
 ------------------------------------------------------------------------------
 NAMESPACE RESOLVER                                   *i18n.nvim-namespace*
