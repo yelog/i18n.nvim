@@ -208,6 +208,7 @@ How it works:
 
 Notes:
   - Auto-detect runs when `auto_detect = true` or `sources` is empty
+  - Auto-detect is skipped when a project config file defines `sources`
   - Detected locales used only if `locales` not explicitly configured
   - Notification shows detection results on first load
   - Access via `require('i18n.config').options._detected_sources`

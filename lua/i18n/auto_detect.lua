@@ -456,6 +456,11 @@ end
 function M.should_auto_detect(config_opts)
   if not config_opts then return false end
 
+  -- Project config sources take precedence
+  if config_opts._project_config_sources then
+    return false
+  end
+
   -- Explicitly enabled (either true or { enabled = true })
   if config_opts.auto_detect == true then
     return true

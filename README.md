@@ -378,6 +378,7 @@ src/views/calendar/locales/en/events.ts
 
 **Notes:**
 - Auto-detect runs when `auto_detect = true` or when `sources` is empty/not configured
+- Auto-detect is skipped when a project config file defines `sources` (even if `auto_detect = true`)
 - Detected locales are used only if `locales` is not explicitly configured
 - A notification shows what was detected on first load
 - Access detected configuration via `require('i18n.config').options._detected_sources`

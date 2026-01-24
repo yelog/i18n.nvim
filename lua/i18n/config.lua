@@ -382,6 +382,18 @@ M.defaults = {
 M.project_config = nil
 M.options = {}
 
+local function has_sources(cfg)
+  if not cfg then return false end
+  local sources = cfg.sources
+  if type(sources) == 'string' then
+    return sources ~= ''
+  end
+  if type(sources) == 'table' then
+    return #sources > 0
+  end
+  return false
+end
+
 -- Attempt to load project-level configuration from current working directory
 local function load_project_config()
   local config_files = { '.i18nrc.json', 'i18n.config.json', '.i18nrc.lua' }
@@ -434,8 +446,10 @@ M.setup = function(opts)
   local user_config = opts
 
   local project_cfg = M.reload_project_config()
+  local project_has_sources = has_sources(project_cfg)
 
   M.options = vim.tbl_deep_extend('force', M.defaults, user_config, project_cfg or {})
+  M.options._project_config_sources = project_has_sources
   local raw_func_spec = M.options.func_pattern
   M.options._func_pattern_spec = raw_func_spec
   M.options.func_pattern = normalize_func_patterns(raw_func_spec)
