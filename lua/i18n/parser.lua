@@ -50,20 +50,70 @@ function M._setup_file_watchers()
       vim.api.nvim_create_autocmd({ 'BufWritePost', 'BufDelete', 'FileChangedShellPost' }, {
         group = group,
         pattern = file,
-        callback = function()
+        callback = function(args)
           -- 重新加载翻译并刷新展示
           local ok_p, parser_mod = pcall(require, 'i18n.parser')
           if ok_p then
-            parser_mod.load_translations()
+            local target = file
+            if args and args.file and args.file ~= '' then
+              target = args.file
+            end
+            if parser_mod.reload_translation_file then
+              parser_mod.reload_translation_file(target)
+            else
+              parser_mod.load_translations()
+            end
           end
           local ok_d, display_mod = pcall(require, 'i18n.display')
-            if ok_d and display_mod.refresh then
-              display_mod.refresh()
-            end
+          if ok_d and display_mod.refresh then
+            display_mod.refresh()
+          end
         end,
         desc = "Reload i18n translations on file change",
       })
     end
+  end
+end
+
+local function resolve_locale_for_file(abs_path)
+  if not abs_path then return nil end
+
+  for locale, file_map in pairs(M.file_prefixes or {}) do
+    local prefix = file_map[abs_path]
+    if prefix then
+      return locale, prefix
+    end
+  end
+
+  for locale, file_map in pairs(M.file_prefixes or {}) do
+    for stored_path, prefix in pairs(file_map) do
+      local stored_abs = vim.loop.fs_realpath(stored_path) or vim.fn.fnamemodify(stored_path, ":p")
+      if stored_abs == abs_path then
+        return locale, prefix
+      end
+    end
+  end
+
+  return nil
+end
+
+local function clear_entries_for_file(locale, abs_path)
+  local translations = M.translations[locale]
+  local meta_locale = M.meta[locale]
+  if not translations or not meta_locale then
+    return
+  end
+
+  local keys = {}
+  for key, meta in pairs(meta_locale) do
+    if meta.file == abs_path then
+      table.insert(keys, key)
+    end
+  end
+
+  for _, key in ipairs(keys) do
+    translations[key] = nil
+    meta_locale[key] = nil
   end
 end
 
@@ -344,6 +394,49 @@ local function parse_file(filepath)
   end
 
   return nil
+end
+
+function M.reload_translation_file(path)
+  if not path or path == '' then return false end
+  local abs_path = vim.loop.fs_realpath(path) or vim.fn.fnamemodify(path, ":p")
+  local locale, prefix = resolve_locale_for_file(abs_path)
+  if not locale then
+    return false
+  end
+
+  clear_entries_for_file(locale, abs_path)
+
+  local data, line_map, col_map
+  if utils.file_exists(abs_path) then
+    data, line_map, col_map = parse_file(abs_path)
+  end
+
+  if data then
+    M.translations[locale] = M.translations[locale] or {}
+    M.meta[locale] = M.meta[locale] or {}
+    for k, v in pairs(data) do
+      local final_key = (prefix or "") .. k
+      M.translations[locale][final_key] = v
+      local line = line_map and line_map[k] or 1
+      local col = (col_map and col_map[k]) or 1
+      M.meta[locale][final_key] = { file = abs_path, line = line, col = col }
+    end
+  end
+
+  -- 更新 all_keys（保持简单，重新聚合）
+  local set = {}
+  for _, translations in pairs(M.translations) do
+    for k, _ in pairs(translations) do
+      set[k] = true
+    end
+  end
+  M.all_keys = {}
+  for k, _ in pairs(set) do
+    table.insert(M.all_keys, k)
+  end
+  table.sort(M.all_keys)
+
+  return data ~= nil
 end
 
 -- 深度合并表
