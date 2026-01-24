@@ -2,6 +2,74 @@ local M = {}
 local config = require('i18n.config')
 local utils = require('i18n.utils')
 
+local function is_absolute_path(path)
+  if not path or path == '' then return false end
+  if path:match('^%a:[\\/]') then
+    return true
+  end
+  return path:sub(1, 1) == '/'
+end
+
+local function to_absolute_pattern(pattern)
+  if not pattern or pattern == '' then return nil end
+  if is_absolute_path(pattern) then
+    return pattern
+  end
+  local cwd = vim.fn.getcwd()
+  if cwd:sub(-1) == '/' then
+    return cwd .. pattern
+  end
+  return cwd .. '/' .. pattern
+end
+
+local function globify_source_pattern(pattern)
+  return pattern:gsub('{[^}]+}', '*')
+end
+
+local function collect_patterns_from_sources(sources)
+  local patterns = {}
+  local seen = {}
+
+  for _, source in ipairs(sources or {}) do
+    local pattern = source
+    if type(source) == 'table' then
+      pattern = source.pattern or source.files
+    end
+    if type(pattern) == 'string' and pattern ~= '' then
+      local glob = globify_source_pattern(pattern)
+      local abs = to_absolute_pattern(glob)
+      if abs and not seen[abs] then
+        seen[abs] = true
+        table.insert(patterns, abs)
+      end
+    end
+  end
+
+  return patterns
+end
+
+local function collect_patterns_from_files(files)
+  local patterns = {}
+  local seen = {}
+
+  for _, file in ipairs(files or {}) do
+    if file and file ~= '' then
+      local dir = vim.fn.fnamemodify(file, ':h')
+      local ext = file:match('%.([^%.]+)$')
+      local pattern = dir .. '/*'
+      if ext then
+        pattern = pattern .. '.' .. ext
+      end
+      if not seen[pattern] then
+        seen[pattern] = true
+        table.insert(patterns, pattern)
+      end
+    end
+  end
+
+  return patterns
+end
+
 -- Neovim(LuaJIT 5.1) 没有标准 utf8.char，这里实现一个安全的 UTF-8 编码函数
 local function u_char(cp)
   if type(cp) ~= "number" or cp < 0 then return "" end
@@ -43,36 +111,41 @@ function M._setup_file_watchers()
   end
   -- 统一使用同一个 augroup，每次重建
   local group = vim.api.nvim_create_augroup('I18nTranslationFilesWatcher', { clear = true })
-  local patterns_added = {}
-  for _, file in ipairs(M._translation_files) do
-    if file and file ~= "" and not patterns_added[file] then
-      patterns_added[file] = true
-      vim.api.nvim_create_autocmd({ 'BufWritePost', 'BufDelete', 'FileChangedShellPost' }, {
-        group = group,
-        pattern = file,
-        callback = function(args)
-          -- 重新加载翻译并刷新展示
-          local ok_p, parser_mod = pcall(require, 'i18n.parser')
-          if ok_p then
-            local target = file
-            if args and args.file and args.file ~= '' then
-              target = args.file
-            end
-            if parser_mod.reload_translation_file then
-              parser_mod.reload_translation_file(target)
-            else
-              parser_mod.load_translations()
-            end
-          end
-          local ok_d, display_mod = pcall(require, 'i18n.display')
-          if ok_d and display_mod.refresh then
-            display_mod.refresh()
-          end
-        end,
-        desc = "Reload i18n translations on file change",
-      })
-    end
+  local patterns = collect_patterns_from_sources(M._active_sources)
+  if #patterns == 0 then
+    patterns = collect_patterns_from_files(M._translation_files)
   end
+  if #patterns == 0 then
+    return
+  end
+
+  vim.api.nvim_create_autocmd({ 'BufWritePost', 'BufDelete', 'FileChangedShellPost' }, {
+    group = group,
+    pattern = patterns,
+    callback = function(args)
+      -- 重新加载翻译并刷新展示
+      local ok_p, parser_mod = pcall(require, 'i18n.parser')
+      if ok_p then
+        local target = args and args.file or ''
+        if target == '' then
+          return
+        end
+        if parser_mod.reload_translation_file then
+          local ok = parser_mod.reload_translation_file(target)
+          if not ok and parser_mod.load_translations then
+            parser_mod.load_translations()
+          end
+        else
+          parser_mod.load_translations()
+        end
+      end
+      local ok_d, display_mod = pcall(require, 'i18n.display')
+      if ok_d and display_mod.refresh then
+        display_mod.refresh()
+      end
+    end,
+    desc = "Reload i18n translations on file change",
+  })
 end
 
 local function resolve_locale_for_file(abs_path)
@@ -699,6 +772,8 @@ M.load_translations = function()
       end
     end
   end
+
+  M._active_sources = sources
 
   for _, locale in ipairs(locales) do
     for _, source in ipairs(sources) do
