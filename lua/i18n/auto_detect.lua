@@ -17,7 +17,7 @@ M.default_known_locales = {
 
 -- Default locale directory names to search for
 M.default_locale_dir_names = {
-  'locales', 'locale', 'i18n', 'lang', 'languages', 'translations', 'messages',
+  'locales', 'locale', 'i18n', 'lang', 'langs', 'languages', 'translations', 'messages',
 }
 
 -- Default supported file extensions
@@ -175,7 +175,7 @@ local function analyze_locale_directory(dir_path, known_locales, extensions)
       else
         -- Check if it might be a "lang" subdirectory
         local lower_name = entry.name:lower()
-        if lower_name == 'lang' or lower_name == 'languages' then
+        if lower_name == 'lang' or lower_name == 'langs' or lower_name == 'languages' then
           -- Recurse into this directory
           local sub_analysis = analyze_locale_directory(entry.path, known_locales, extensions)
           if sub_analysis then
@@ -255,12 +255,16 @@ local function generate_source_config(locale_dir_info, analysis, cwd)
   if cwd and dir_path:sub(1, #cwd) == cwd then
     relative_path = dir_path:sub(#cwd + 2)  -- +2 to skip the trailing /
   end
+  -- Remove leading './' if present
+  relative_path = relative_path:gsub('^%./', '')
 
   -- Analyze parent path to extract variables (like {bu} for business unit)
   local parent_relative = parent_path
   if cwd and parent_path:sub(1, #cwd) == cwd then
     parent_relative = parent_path:sub(#cwd + 2)
   end
+  -- Remove leading './' if present
+  parent_relative = parent_relative:gsub('^%./', '')
 
   -- Check if parent path contains variable segments
   -- e.g., src/views/gmail/locales -> {bu} = gmail
@@ -270,16 +274,22 @@ local function generate_source_config(locale_dir_info, analysis, cwd)
 
   -- Find variable segments by looking for non-standard directory names
   -- between known anchors (src, views, locales, etc.)
-  local known_anchors = { 'src', 'source', 'app', 'lib', 'views', 'pages', 'components', 'modules', 'features' }
+  local known_anchors = { 'src', 'source', 'app', 'lib', 'views', 'pages', 'components', 'modules', 'features', 'packages' }
   local segments = {}
   for seg in parent_relative:gmatch('[^/]+') do
-    table.insert(segments, seg)
+    -- Skip '.' and empty segments
+    if seg ~= '.' and seg ~= '' then
+      table.insert(segments, seg)
+    end
   end
 
   -- Identify variable segments
+  -- Only segments AFTER the first anchor should be considered as variables
+  -- This prevents top-level directories (like 'playground', 'examples') from being treated as variables
   local variable_names = { 'bu', 'business', 'module', 'feature', 'component', 'domain', 'area' }
   local var_index = 1
   local new_segments = {}
+  local found_first_anchor = false
 
   for i, seg in ipairs(segments) do
     local is_anchor = false
@@ -298,9 +308,13 @@ local function generate_source_config(locale_dir_info, analysis, cwd)
     end
 
     if is_anchor then
+      found_first_anchor = true
+      table.insert(new_segments, seg)
+    elseif not found_first_anchor then
+      -- Before first anchor: keep segment as-is (not a variable)
       table.insert(new_segments, seg)
     else
-      -- This is likely a variable segment
+      -- After first anchor: this is likely a variable segment
       local var_name = variable_names[var_index] or ('var' .. var_index)
       var_index = var_index + 1
       table.insert(new_segments, '{' .. var_name .. '}')
@@ -394,7 +408,7 @@ function M.detect(opts)
   opts = opts or {}
 
   local cwd = vim.fn.getcwd()
-  local root_dirs = opts.root_dirs or { 'src', 'app', 'lib', '.' }
+  local root_dirs = opts.root_dirs or { '.' }
   local locale_dir_names = opts.locale_dir_names or M.default_locale_dir_names
   local known_locales = opts.known_locales or M.default_known_locales
   local extensions = opts.extensions or M.default_extensions
@@ -482,7 +496,7 @@ function M.debug(custom_opts)
   end
 
   local opts = {
-    root_dirs = (custom_opts and custom_opts.root_dirs) or config_opts.root_dirs or { 'src', 'app', 'lib', '.' },
+    root_dirs = (custom_opts and custom_opts.root_dirs) or config_opts.root_dirs or { '.' },
     locale_dir_names = (custom_opts and custom_opts.locale_dir_names) or config_opts.locale_dir_names or M.default_locale_dir_names,
     known_locales = (custom_opts and custom_opts.known_locales) or config_opts.known_locales or M.default_known_locales,
     extensions = (custom_opts and custom_opts.extensions) or config_opts.extensions or M.default_extensions,
@@ -548,7 +562,7 @@ function M.debug(custom_opts)
           for _, e in ipairs(entries) do
             if e.type == 'directory' then
               local is_locale = is_known_locale(e.name, opts.known_locales)
-              local is_lang = e.name:lower() == 'lang' or e.name:lower() == 'languages'
+              local is_lang = e.name:lower() == 'lang' or e.name:lower() == 'langs' or e.name:lower() == 'languages'
               print('      [DIR] ' .. e.name .. ' (is_locale: ' .. tostring(is_locale) .. ', is_lang_subdir: ' .. tostring(is_lang) .. ')')
             else
               print('      [FILE] ' .. e.name)

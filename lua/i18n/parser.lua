@@ -373,7 +373,7 @@ local function scan_vars(pattern, vars, idx, cb)
     return
   end
   local var = vars[idx]
-  local before, after = pattern:match("^(.-){(" .. var .. ")}(.*)$")
+  local before, after = pattern:match("^(.-){" .. var .. "}(.*)$")
 
   -- vim.notify("Scanning pattern: " ..
   --   pattern .. " for variable: " .. var .. "\nBefore: " .. tostring(before) .. "\nAfter: " .. tostring(after))
@@ -383,7 +383,11 @@ local function scan_vars(pattern, vars, idx, cb)
     return
   end
   -- 获取变量所在目录
-  local dir = before:match("^(.-)/?$") or "."
+  local dir = before:match("^(.-)/?$")
+  -- 空字符串在 Lua 中是 truthy 的，需要显式检查
+  if not dir or dir == "" then
+    dir = "."
+  end
 
   -- 判断变量后是否直接跟着扩展名（如 .ts/.js/.json），如果是则扫描文件
   -- 支持 {module}.ts 这种情况
