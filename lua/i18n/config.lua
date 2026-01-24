@@ -280,6 +280,14 @@ local function normalize_func_patterns(raw)
 end
 
 M.defaults = {
+  -- Activation strategy for the plugin
+  -- Options:
+  --   'auto'   : Activate when i18n project detected (recommended, checks package.json/config files)
+  --   'lazy'   : Activate when opening a supported filetype in an i18n project
+  --   'manual' : Only activate via :I18nEnable command
+  --   'eager'  : Activate immediately on setup (legacy behavior)
+  activation = 'auto',
+
   -- Inline rendering behaviour:
   --   'both'                : always show original key + translation inline
   --   'translation'         : hide key except on cursor line (shows key+translation)

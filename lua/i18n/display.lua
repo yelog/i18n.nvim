@@ -766,6 +766,18 @@ M.refresh = function()
   end
 end
 
+-- 清除所有缓冲区的虚拟文本和诊断
+M.clear_all = function()
+  for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(bufnr) then
+      pcall(vim.api.nvim_buf_clear_namespace, bufnr, ns, 0, -1)
+      pcall(vim.api.nvim_buf_clear_namespace, bufnr, keypos_ns, 0, -1)
+      pcall(vim.diagnostic.reset, diag_ns, bufnr)
+    end
+  end
+  M._cursor_state = {}
+end
+
 -- 定义切换语言命令（只注册一次）
 if not vim.g._i18n_next_locale_command_defined then
   vim.api.nvim_create_user_command("I18nNextLocale", function()
