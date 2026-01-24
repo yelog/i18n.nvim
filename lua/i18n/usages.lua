@@ -1014,45 +1014,220 @@ local function open_location(entry, key)
   return true
 end
 
+-- Extract key name from a line in a locale file (JSON/YAML format)
+local function extract_key_from_line(line)
+  -- JSON format: "key": value or "key": {
+  local json_key = line:match('^%s*"([^"]+)"%s*:')
+  if json_key then return json_key end
+
+  -- YAML format: key: value or key:
+  local yaml_key = line:match('^%s*([%w_%-%.]+)%s*:')
+  if yaml_key then return yaml_key end
+
+  return nil
+end
+
+-- Get the indentation (number of leading spaces/tabs) for a line
+local function get_indent_width(line)
+  local spaces = line:match('^(%s*)')
+  if not spaces or spaces == '' then return 0 end
+  local count = 0
+  for c in spaces:gmatch('.') do
+    if c == '\t' then
+      count = count + 4  -- Treat tab as 4 spaces
+    else
+      count = count + 1
+    end
+  end
+  return count
+end
+
+-- Detect the base indentation unit (spaces per level) in a file
+local function detect_indent_unit(lines)
+  local min_indent = nil
+  for _, line in ipairs(lines) do
+    -- Skip empty lines and lines without keys
+    if extract_key_from_line(line) then
+      local indent = get_indent_width(line)
+      if indent > 0 then
+        if not min_indent or indent < min_indent then
+          min_indent = indent
+        end
+      end
+    end
+  end
+  return min_indent or 2  -- Default to 2 if no indentation found
+end
+
+-- Build full key path by traversing upward through parent keys
+local function build_key_path_from_line(lines, target_line_num)
+  if not lines or target_line_num < 1 or target_line_num > #lines then
+    return nil
+  end
+
+  local target_line = lines[target_line_num]
+  local current_key = extract_key_from_line(target_line)
+  if not current_key then return nil end
+
+  local indent_unit = detect_indent_unit(lines)
+  local current_indent = get_indent_width(target_line)
+  local path_parts = { current_key }
+
+  -- Walk upward to find parent keys (keys with less indentation)
+  local search_indent = current_indent - indent_unit
+  for i = target_line_num - 1, 1, -1 do
+    if search_indent < 0 then break end
+    local line = lines[i]
+    local indent = get_indent_width(line)
+    if indent == search_indent then
+      local key = extract_key_from_line(line)
+      if key then
+        table.insert(path_parts, 1, key)
+        search_indent = search_indent - indent_unit
+      end
+    elseif indent < search_indent then
+      -- Found a line with even less indentation, check if it's a key
+      local key = extract_key_from_line(line)
+      if key then
+        table.insert(path_parts, 1, key)
+        search_indent = indent - indent_unit
+      end
+    end
+  end
+
+  return table.concat(path_parts, '.')
+end
+
+-- Get all known keys from parser (from translations or meta)
+local function get_all_known_keys()
+  local keys = {}
+  local seen = {}
+
+  -- Try translations first
+  local translations = parser.translations or {}
+  for _, locale_tbl in pairs(translations) do
+    if type(locale_tbl) == 'table' then
+      for key, _ in pairs(locale_tbl) do
+        if not seen[key] then
+          seen[key] = true
+          table.insert(keys, key)
+        end
+      end
+    end
+  end
+
+  -- Also try meta
+  local meta = parser.meta or {}
+  for _, meta_tbl in pairs(meta) do
+    if type(meta_tbl) == 'table' then
+      for key, _ in pairs(meta_tbl) do
+        if not seen[key] then
+          seen[key] = true
+          table.insert(keys, key)
+        end
+      end
+    end
+  end
+
+  return keys
+end
+
+-- Detect key at cursor, returns (key_or_prefix, is_prefix)
+-- For leaf nodes: returns (full_key, false)
+-- For non-leaf nodes: returns (prefix, true)
 local function detect_key_at_cursor()
   local buf_path = vim.api.nvim_buf_get_name(0)
-  if buf_path == '' then return nil end
+  if buf_path == '' then return nil, false end
   local abs_path = vim.loop.fs_realpath(buf_path) or buf_path
   local cursor_line = vim.api.nvim_win_get_cursor(0)[1]
-  local locales = (config.options and config.options.locales) or {}
-  if #locales == 0 then return nil end
 
+  local locales = (config.options and config.options.locales) or {}
   local meta_per_locale = parser.meta or {}
 
+  -- If locales is empty, try to get from parser.meta or parser.translations
+  if #locales == 0 then
+    for locale, _ in pairs(meta_per_locale) do
+      table.insert(locales, locale)
+    end
+  end
+  if #locales == 0 then
+    for locale, _ in pairs(parser.translations or {}) do
+      table.insert(locales, locale)
+    end
+  end
+
+  -- First, check for exact match (leaf node) using meta
   for _, locale in ipairs(locales) do
     local meta_tbl = meta_per_locale[locale]
     if meta_tbl then
       for key, meta in pairs(meta_tbl) do
         if meta.file == abs_path and meta.line == cursor_line then
-          return key
+          return key, false
         end
       end
     end
   end
 
-  local candidate
-  local best_diff
-  for _, locale in ipairs(locales) do
-    local meta_tbl = meta_per_locale[locale]
-    if meta_tbl then
-      for key, meta in pairs(meta_tbl) do
-        if meta.file == abs_path and meta.line and meta.line <= cursor_line then
-          local diff = cursor_line - meta.line
-          if not best_diff or diff < best_diff then
-            best_diff = diff
-            candidate = key
-          end
-        end
+  -- No exact match, try to detect if we're on a non-leaf node
+  -- Read the buffer lines and build the key path
+  local bufnr = vim.api.nvim_get_current_buf()
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local key_path = build_key_path_from_line(lines, cursor_line)
+
+  if key_path then
+    -- Get all known keys
+    local all_keys = get_all_known_keys()
+    local prefix_pattern = '^' .. vim.pesc(key_path) .. '%.'
+
+    -- Check if key_path is a prefix of any known keys
+    for _, key in ipairs(all_keys) do
+      if key:match(prefix_pattern) then
+        -- Found a descendant key, so key_path is a valid prefix
+        return key_path, true
+      end
+    end
+
+    -- Check if key_path itself is an exact key (leaf node not on cursor line)
+    for _, key in ipairs(all_keys) do
+      if key == key_path then
+        return key_path, false
       end
     end
   end
 
-  return candidate
+  return nil, false
+end
+
+-- Get all usages for keys matching a prefix
+function M.get_usages_for_prefix(prefix)
+  if not prefix or prefix == '' then return {} end
+
+  local all_entries = {}
+  local prefix_pattern = '^' .. vim.pesc(prefix) .. '%.'
+
+  for key, entries in pairs(M.usages) do
+    if key:match(prefix_pattern) or key == prefix then
+      for _, entry in ipairs(entries) do
+        -- Add key info to entry for display
+        local entry_copy = vim.tbl_extend('force', {}, entry)
+        entry_copy.matched_key = key
+        table.insert(all_entries, entry_copy)
+      end
+    end
+  end
+
+  -- Sort by file, line, col
+  table.sort(all_entries, function(a, b)
+    if a.file ~= b.file then
+      return a.file < b.file
+    end
+    if (a.line or 0) ~= (b.line or 0) then
+      return (a.line or 0) < (b.line or 0)
+    end
+    return (a.col or 0) < (b.col or 0)
+  end)
+
+  return all_entries
 end
 
 function M.scan_file(path)
@@ -1216,13 +1391,43 @@ function M.jump_to_usage(key)
   return true
 end
 
+-- Jump to usages for a key prefix (non-leaf node)
+function M.jump_to_prefix_usages(prefix)
+  if not prefix or prefix == '' then
+    if should_notify_no_key() then
+      vim.notify('[i18n] No i18n key prefix detected under cursor', vim.log.levels.WARN)
+    end
+    return false
+  end
+  local entries = M.get_usages_for_prefix(prefix)
+  if #entries == 0 then
+    vim.notify(string.format('[i18n] No usages found for %s.*', prefix), vim.log.levels.INFO)
+    return false
+  end
+  if #entries == 1 then
+    local display_key = entries[1].matched_key or prefix
+    return open_location(entries[1], display_key)
+  end
+
+  pick_usage(entries, prefix .. '.*', function(choice)
+    if choice then
+      local display_key = choice.matched_key or prefix
+      open_location(choice, display_key)
+    end
+  end)
+  return true
+end
+
 function M.jump_under_cursor()
-  local key = detect_key_at_cursor()
+  local key, is_prefix = detect_key_at_cursor()
   if not key then
     if should_notify_no_key() then
       vim.notify('[i18n] No i18n key detected under cursor', vim.log.levels.WARN)
     end
     return false
+  end
+  if is_prefix then
+    return M.jump_to_prefix_usages(key)
   end
   return M.jump_to_usage(key)
 end
