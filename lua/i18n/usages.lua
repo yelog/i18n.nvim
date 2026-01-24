@@ -3,6 +3,7 @@ local M = {}
 local config = require('i18n.config')
 local parser = require('i18n.parser')
 local utils = require('i18n.utils')
+local namespace = require('i18n.namespace')
 
 local ft_glob_map = {
   vue = { '*.vue' },
@@ -311,26 +312,29 @@ local function collect_file_usages(file)
 
   local comment_checker = nil
   local bufnr = vim.fn.bufnr(file)
-  if bufnr ~= -1 and vim.api.nvim_buf_is_loaded(bufnr) then
+  local buf_is_loaded = bufnr ~= -1 and vim.api.nvim_buf_is_loaded(bufnr)
+  if buf_is_loaded then
     comment_checker = utils.make_comment_checker(bufnr)
   end
 
+  -- Detect filetype for namespace resolution
+  local ft = nil
+  local ok_ft, matched_ft = pcall(vim.filetype.match, { filename = file })
+  if ok_ft then
+    ft = matched_ft
+  end
+  if not ft or ft == '' then
+    local ext = vim.fn.fnamemodify(file, ':e')
+    if ext and ext ~= '' then
+      ft = ext
+    end
+  end
+
   if not comment_checker and utils.make_comment_checker_from_content then
-    local ft = nil
-    local ok_ft, matched_ft = pcall(vim.filetype.match, { filename = file })
-    if ok_ft then
-      ft = matched_ft
-    end
-    if not ft or ft == '' then
-      local ext = vim.fn.fnamemodify(file, ':e')
-      if ext and ext ~= '' then
-        ft = ext
-      end
-    end
-    if ft and ft_to_ts[ft] then
-      ft = ft_to_ts[ft]
-    end
     local lang = ft
+    if lang and ft_to_ts[lang] then
+      lang = ft_to_ts[lang]
+    end
     if lang and lang ~= '' then
       local content = table.concat(lines, '\n')
       comment_checker = utils.make_comment_checker_from_content(content, lang)
@@ -363,14 +367,25 @@ local function collect_file_usages(file)
           if #preview > 120 then
             preview = preview:sub(1, 117) .. '...'
           end
+
+          -- Resolve namespace for the key
+          local resolved_key = match.key
+          if buf_is_loaded then
+            -- Use Tree-sitter-based resolution for loaded buffers
+            resolved_key = namespace.resolve(bufnr, match.key, idx, match.key_start or match.match_start or 1)
+          else
+            -- Use content-based resolution for unloaded files
+            resolved_key = namespace.resolve_key_from_content(lines, match.key, idx, ft)
+          end
+
           table.insert(entries, {
-            key = match.key,
+            key = resolved_key,
             file = file,
             line = idx,
             col = match.key_start or match.match_start,
             preview = preview,
           })
-          key_set[match.key] = true
+          key_set[resolved_key] = true
         end
       end
     end

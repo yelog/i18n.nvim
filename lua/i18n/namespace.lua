@@ -441,6 +441,123 @@ function M.clear_cache(bufnr)
   end
 end
 
+-- Content-based namespace resolution (for scanning files without buffers)
+-- Uses regex patterns to find useTranslation/useI18n calls and track scope
+-- @param lines table - array of file lines
+-- @param target_line number - 1-based line number to resolve namespace for
+-- @param filetype string|nil - optional filetype hint
+-- @return string|nil - namespace if found
+function M.resolve_from_content(lines, target_line, filetype)
+  local config = require('i18n.config')
+  local resolver_config = (config.options or {}).namespace_resolver
+
+  -- Disabled by default
+  if not resolver_config then
+    return nil
+  end
+
+  -- Check if resolver is enabled (string, function, or table means enabled)
+  if type(resolver_config) ~= 'string' and type(resolver_config) ~= 'function' and type(resolver_config) ~= 'table' then
+    return nil
+  end
+
+  if type(lines) ~= 'table' or #lines == 0 then
+    return nil
+  end
+
+  -- Patterns for common i18n hook patterns
+  -- Pattern: useTranslation('namespace') or useTranslation("namespace")
+  -- Also handles: const { t } = useTranslation('namespace')
+  local use_translation_pattern = "useTranslation%s*%(%s*['\"]([^'\"]+)['\"]"
+
+  -- Pattern: useI18n({ ... namespace: 'ns' ... }) - less common but possible
+  local use_i18n_ns_pattern = "useI18n%s*%({[^}]*namespace%s*:%s*['\"]([^'\"]+)['\"]"
+
+  -- Track namespace scopes: { start_line, end_line, namespace }
+  local scopes = {}
+
+  -- Simple brace counting for scope detection
+  local brace_depth = 0
+  local current_scope_start = nil
+  local current_namespace = nil
+
+  for line_num, line in ipairs(lines) do
+    -- Check for useTranslation call
+    local ns = line:match(use_translation_pattern)
+    if not ns then
+      ns = line:match(use_i18n_ns_pattern)
+    end
+
+    if ns then
+      -- Found a namespace declaration, track scope from here
+      current_namespace = ns
+      current_scope_start = line_num
+      brace_depth = 0
+
+      -- Count initial braces on this line
+      for _ in line:gmatch('{') do
+        brace_depth = brace_depth + 1
+      end
+      for _ in line:gmatch('}') do
+        brace_depth = brace_depth - 1
+      end
+    elseif current_namespace then
+      -- Track brace depth for scope
+      for _ in line:gmatch('{') do
+        brace_depth = brace_depth + 1
+      end
+      for _ in line:gmatch('}') do
+        brace_depth = brace_depth - 1
+        if brace_depth <= 0 then
+          -- Scope closed, record it
+          table.insert(scopes, {
+            start_line = current_scope_start,
+            end_line = line_num,
+            namespace = current_namespace,
+          })
+          current_namespace = nil
+          current_scope_start = nil
+          brace_depth = 0
+        end
+      end
+    end
+  end
+
+  -- Handle unclosed scope (extends to end of file)
+  if current_namespace and current_scope_start then
+    table.insert(scopes, {
+      start_line = current_scope_start,
+      end_line = #lines,
+      namespace = current_namespace,
+    })
+  end
+
+  -- Find scope that contains the target line
+  for _, scope in ipairs(scopes) do
+    if target_line >= scope.start_line and target_line <= scope.end_line then
+      return scope.namespace
+    end
+  end
+
+  return nil
+end
+
+-- Resolve key from file content without buffer context
+-- @param lines table - array of file lines
+-- @param key string - raw extracted key
+-- @param line number - 1-based line number
+-- @param filetype string|nil - optional filetype hint
+-- @return string - resolved key (with namespace prefix if found)
+function M.resolve_key_from_content(lines, key, line, filetype)
+  local namespace = M.resolve_from_content(lines, line, filetype)
+  if namespace then
+    local config = require('i18n.config')
+    local separator = (config.options or {}).namespace_separator or ':'
+    return namespace .. separator .. key
+  end
+  return key
+end
+
 -- Register a custom resolver
 -- @param name string - resolver name
 -- @param resolver function - resolver function(bufnr, key, line, col) -> namespace|nil
