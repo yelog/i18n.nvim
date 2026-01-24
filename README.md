@@ -349,6 +349,7 @@ require('i18n').setup({
     locale_dir_names = { 'locales', 'i18n' }, -- names of locale directories
     extensions = { 'json', 'ts' },           -- supported file extensions
     max_depth = 6,                           -- max directory depth to scan
+    notify = true,                            -- show auto-detect summary
   },
 })
 ```
@@ -383,7 +384,7 @@ src/views/calendar/locales/en/events.ts
 - Auto-detect runs when `auto_detect = true` or when `sources` is empty/not configured
 - Auto-detect is skipped when a project config file defines `sources` (even if `auto_detect = true`)
 - Detected locales are used only if `locales` is not explicitly configured
-- A notification shows what was detected on first load
+- Notifications are shown only when `auto_detect.notify = true` (default: off)
 - Access detected configuration via `require('i18n.config').options._detected_sources`
 
 ### 🔧 Namespace Resolver (React i18next / Vue i18n)

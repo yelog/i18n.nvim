@@ -186,6 +186,7 @@ With custom settings: >
       locale_dir_names = { 'locales', 'i18n' }, -- locale directory names
       extensions = { 'json', 'ts' },           -- supported extensions
       max_depth = 6,                           -- max scan depth
+      notify = true,                            -- show auto-detect summary
     },
   })
 <
@@ -213,7 +214,7 @@ Notes:
   - Auto-detect runs when `auto_detect = true` or `sources` is empty
   - Auto-detect is skipped when a project config file defines `sources`
   - Detected locales used only if `locales` not explicitly configured
-  - Notification shows detection results on first load
+  - Notifications are shown only when `auto_detect.notify = true` (default: off)
   - Access via `require('i18n.config').options._detected_sources`
 
 ------------------------------------------------------------------------------

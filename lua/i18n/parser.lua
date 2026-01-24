@@ -821,6 +821,11 @@ M.load_translations = function()
   if auto_detect.should_auto_detect(options) then
     local detect_opts = auto_detect.get_options(options)
     local detected_sources, detected_locales = auto_detect.detect(detect_opts)
+    local auto_detect_opts = options.auto_detect
+    local notify_auto_detect = false
+    if type(auto_detect_opts) == 'table' then
+      notify_auto_detect = auto_detect_opts.notify == true
+    end
 
     if detected_sources and #detected_sources > 0 then
       sources = detected_sources
@@ -837,7 +842,7 @@ M.load_translations = function()
       end
 
       -- Notify user about auto-detection results (only once per session)
-      if not M._auto_detect_notified then
+      if notify_auto_detect and not M._auto_detect_notified then
         local source_count = #detected_sources
         local locale_count = #locales
         -- Build source info for notification
@@ -857,7 +862,7 @@ M.load_translations = function()
       end
     else
       -- Auto-detect was enabled but found nothing
-      if not M._auto_detect_notified then
+      if notify_auto_detect and not M._auto_detect_notified then
         vim.notify('[i18n] Auto-detect enabled but no locale directories found', vim.log.levels.WARN)
         M._auto_detect_notified = true
       end
