@@ -60,6 +60,12 @@ local async_scan = {
   time_budget_ns = 10 * 1000 * 1000, -- 10ms per batch
 }
 
+local file_cache = {
+  key = nil,
+  files = nil,
+  index = nil,
+}
+
 local function schedule_display_refresh()
   if pending_refresh then return end
   pending_refresh = true
@@ -106,6 +112,62 @@ local function normalize_globs()
   return collected
 end
 
+local function build_cache_key(globs, cwd)
+  if not globs or #globs == 0 then return nil end
+  local prefix = cwd or vim.loop.cwd() or ''
+  return prefix .. '\n' .. table.concat(globs, '\n')
+end
+
+local function build_file_index(files)
+  local index = {}
+  for _, file in ipairs(files or {}) do
+    if file and file ~= '' then
+      index[file] = true
+    end
+  end
+  return index
+end
+
+local function update_file_cache(key, files)
+  file_cache.key = key
+  file_cache.files = files
+  file_cache.index = build_file_index(files)
+end
+
+local function maybe_add_file_to_cache(path)
+  if not file_cache.key or not file_cache.files or not file_cache.index then
+    return
+  end
+  local globs = normalize_globs()
+  if #globs == 0 then return end
+  local key = build_cache_key(globs)
+  if key ~= file_cache.key then
+    return
+  end
+  local abs = vim.loop.fs_realpath(path) or vim.fn.fnamemodify(path, ':p')
+  if not file_cache.index[abs] then
+    file_cache.index[abs] = true
+    table.insert(file_cache.files, abs)
+  end
+end
+
+local function remove_file_from_cache(path)
+  if not file_cache.key or not file_cache.files or not file_cache.index then
+    return
+  end
+  local abs = vim.loop.fs_realpath(path) or vim.fn.fnamemodify(path, ':p')
+  if not file_cache.index[abs] then
+    return
+  end
+  file_cache.index[abs] = nil
+  for idx, file in ipairs(file_cache.files) do
+    if file == abs then
+      table.remove(file_cache.files, idx)
+      break
+    end
+  end
+end
+
 local function build_command(args)
   local escaped = {}
   for _, arg in ipairs(args) do
@@ -114,13 +176,19 @@ local function build_command(args)
   return table.concat(escaped, ' ')
 end
 
-local function collect_files()
+local function collect_files(opts)
   local globs = normalize_globs()
   if #globs == 0 then return {} end
 
   local files = {}
   local seen = {}
   local cwd = vim.loop.cwd()
+  local cache_key = build_cache_key(globs, cwd)
+  local force_refresh = opts and opts.force
+
+  if not force_refresh and cache_key and file_cache.key == cache_key and file_cache.files then
+    return file_cache.files
+  end
 
   if vim.fn.executable('rg') == 1 then
     local cmd_args = { 'rg', '--files' }
@@ -172,7 +240,21 @@ local function collect_files()
     end
   end
 
+  if cache_key then
+    update_file_cache(cache_key, files)
+  end
   return files
+end
+
+local function should_skip_large_file(file)
+  local usage_opts = config.options and config.options.usage or {}
+  local max_size = usage_opts.max_file_size
+  if type(max_size) ~= 'number' or max_size <= 0 then
+    return false
+  end
+  local stat = vim.loop.fs_stat(file)
+  local size = stat and stat.size or 0
+  return size > max_size
 end
 
 local function extract_keys(line, patterns)
@@ -213,6 +295,9 @@ end
 
 local function collect_file_usages(file)
   if vim.fn.filereadable(file) ~= 1 then
+    return {}, {}
+  end
+  if should_skip_large_file(file) then
     return {}, {}
   end
   local ok, lines = pcall(vim.fn.readfile, file)
@@ -937,7 +1022,8 @@ end
 
 function M.scan_file(path)
   if not path or path == '' then return end
-  local abs = vim.loop.fs_realpath(path) or path
+  local abs = vim.loop.fs_realpath(path) or vim.fn.fnamemodify(path, ':p')
+  maybe_add_file_to_cache(abs)
   remove_file_entries(abs)
   local entries, key_set = collect_file_usages(abs)
   if next(key_set) then
@@ -947,10 +1033,10 @@ function M.scan_file(path)
   end
 end
 
-function M.scan_project_usages()
+function M.scan_project_usages(opts)
   M.usages = {}
   M.file_index = {}
-  local files = collect_files()
+  local files = collect_files(opts)
   for _, file in ipairs(files) do
     local entries, key_set = collect_file_usages(file)
     if next(key_set) then
@@ -1010,7 +1096,7 @@ end
 function M.refresh_async(opts)
   opts = opts or {}
 
-  local files = collect_files()
+  local files = collect_files(opts)
   async_scan.request_id = async_scan.request_id + 1
   async_scan.files = files
   async_scan.index = 1
@@ -1038,7 +1124,7 @@ end
 function M.refresh(opts)
   opts = opts or {}
   if opts.sync then
-    return M.scan_project_usages()
+    return M.scan_project_usages(opts)
   end
   return M.refresh_async(opts)
 end
@@ -1102,7 +1188,8 @@ end
 
 function M.remove_file(path)
   if not path or path == '' then return end
-  local abs = vim.loop.fs_realpath(path) or path
+  local abs = vim.loop.fs_realpath(path) or vim.fn.fnamemodify(path, ':p')
+  remove_file_from_cache(abs)
   remove_file_entries(abs)
   schedule_display_refresh()
 end

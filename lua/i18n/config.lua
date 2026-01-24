@@ -343,6 +343,8 @@ M.defaults = {
     popup_type = 'fzf-lua',
     -- 是否在未检测到光标下 key 时提示
     notify_no_key = true,
+    -- Maximum file size (bytes) to scan for usages; 0 disables the limit
+    max_file_size = 0,
   },
   -- Filetypes/extensions to scan when collecting key usages in project source files
   func_type = {

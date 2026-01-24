@@ -120,6 +120,8 @@ namespace_separator string  Separator between namespace and key (default ':')
 filetypes / ft    {string}  Restrict processing (defaults to
                           { 'vue','typescript','javascript','typescriptreact',
                           'javascriptreact','tsx','jsx','java' })
+usage             {table}  Usage scan options (popup_type, notify_no_key,
+                          max_file_size)
 show_mode         string    Controls inline rendering: 'both' | 'translation' |
                           'translation_conceal' | 'origin' (fallback 'both'
                           for empty/unknown values). 'translation' hides the
@@ -325,6 +327,7 @@ Falls back gracefully if no key; combine with LSP (see keymaps above).
 Line numbers heuristic for non-TS/JS; Tree-sitter gives better accuracy.
 Silence the "[i18n] No i18n key detected under cursor" warning by setting
 `usage = { notify_no_key = false }` in |i18n.nvim-config|.
+Skip large files with `usage = { max_file_size = 1024 * 1024 }`.
 
 ==============================================================================
 POPUP                                                    *i18n.nvim-popup*

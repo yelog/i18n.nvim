@@ -305,6 +305,7 @@ Common options (all optional when a project file is present):
   `{ 'vue', 'typescript', 'javascript', 'typescriptreact', 'javascriptreact', 'tsx', 'jsx', 'java' }`)
 - usage.popup_type: picker shown when a key has multiple usages (`vim_ui` | `telescope` | `fzf-lua` | `snacks`, default `vim_ui`)
 - usage.notify_no_key: whether to warn when `:I18nKeyUsages` finds no key under the cursor (default `true`)
+- usage.max_file_size: skip usage scanning for files larger than this many bytes (0 disables)
 - i18n_keys.popup_type: picker backend for browsing keys (`fzf-lua` | `telescope` | `vim_ui` | `snacks`, default `fzf-lua`)
 - show_mode: controls inline rendering (`both` | `translation` | `translation_conceal` | `origin`; defaults to `both` when unset/unknown). `both` appends the translation after the raw key on every line. `translation` hides the key except on the cursor line (where both are shown). `translation_conceal` hides the key and suppresses the translation on the cursor line so you can edit the raw key comfortably. `origin` disables the overlay entirely.
 - show_locale_file_eol_usage: toggle usage badges in locale buffers (default `true`)

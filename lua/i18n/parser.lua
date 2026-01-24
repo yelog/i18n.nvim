@@ -102,6 +102,10 @@ M.meta = {}
 
 -- 已解析出的实际翻译文件绝对路径列表（用于监控变更）
 M._translation_files = {}
+-- 每个翻译文件的 key 集合（用于增量更新 all_keys）
+M._file_keys = {}
+-- key 引用计数（跨 locale/文件）
+M._key_refcount = {}
 
 -- 设置自动命令监控翻译文件的写入 / 删除 / 外部变更
 function M._setup_file_watchers()
@@ -177,17 +181,110 @@ local function clear_entries_for_file(locale, abs_path)
     return
   end
 
-  local keys = {}
+  local file_keys = M._file_keys and M._file_keys[abs_path]
+  if file_keys then
+    for key in pairs(file_keys) do
+      translations[key] = nil
+      meta_locale[key] = nil
+    end
+    return
+  end
+
   for key, meta in pairs(meta_locale) do
     if meta.file == abs_path then
-      table.insert(keys, key)
+      translations[key] = nil
+      meta_locale[key] = nil
+    end
+  end
+end
+
+local function find_sorted_index(list, key)
+  local low = 1
+  local high = #list
+  while low <= high do
+    local mid = math.floor((low + high) / 2)
+    local current = list[mid]
+    if current == key then
+      return mid, true
+    end
+    if current < key then
+      low = mid + 1
+    else
+      high = mid - 1
+    end
+  end
+  return low, false
+end
+
+local function insert_sorted(list, key)
+  local idx, found = find_sorted_index(list, key)
+  if not found then
+    table.insert(list, idx, key)
+  end
+end
+
+local function remove_sorted(list, key)
+  local idx, found = find_sorted_index(list, key)
+  if found then
+    table.remove(list, idx)
+  end
+end
+
+local function ensure_key_index()
+  M._file_keys = M._file_keys or {}
+  M._key_refcount = M._key_refcount or {}
+  M.all_keys = M.all_keys or {}
+end
+
+local function add_key_ref(key, defer_index)
+  local count = M._key_refcount[key] or 0
+  M._key_refcount[key] = count + 1
+  if count == 0 and not defer_index then
+    insert_sorted(M.all_keys, key)
+  end
+end
+
+local function remove_key_ref(key, defer_index)
+  local count = M._key_refcount[key]
+  if not count then
+    return
+  end
+  if count <= 1 then
+    M._key_refcount[key] = nil
+    if not defer_index then
+      remove_sorted(M.all_keys, key)
+    end
+    return
+  end
+  M._key_refcount[key] = count - 1
+end
+
+local function set_file_keys(abs_path, new_keys, opts)
+  ensure_key_index()
+  local defer_index = opts and opts.defer_index
+  local old_keys = M._file_keys[abs_path]
+  if old_keys then
+    for key in pairs(old_keys) do
+      remove_key_ref(key, defer_index)
     end
   end
 
-  for _, key in ipairs(keys) do
-    translations[key] = nil
-    meta_locale[key] = nil
+  if new_keys and next(new_keys) then
+    M._file_keys[abs_path] = new_keys
+    for key in pairs(new_keys) do
+      add_key_ref(key, defer_index)
+    end
+  else
+    M._file_keys[abs_path] = nil
   end
+end
+
+local function rebuild_all_keys_from_refcount()
+  M.all_keys = {}
+  for key, _ in pairs(M._key_refcount or {}) do
+    table.insert(M.all_keys, key)
+  end
+  table.sort(M.all_keys)
 end
 
 -- 解析 JSON 文件
@@ -484,30 +581,22 @@ function M.reload_translation_file(path)
     data, line_map, col_map = parse_file(abs_path)
   end
 
+  local key_set
   if data then
     M.translations[locale] = M.translations[locale] or {}
     M.meta[locale] = M.meta[locale] or {}
+    key_set = {}
     for k, v in pairs(data) do
       local final_key = (prefix or "") .. k
       M.translations[locale][final_key] = v
       local line = line_map and line_map[k] or 1
       local col = (col_map and col_map[k]) or 1
       M.meta[locale][final_key] = { file = abs_path, line = line, col = col }
+      key_set[final_key] = true
     end
   end
 
-  -- 更新 all_keys（保持简单，重新聚合）
-  local set = {}
-  for _, translations in pairs(M.translations) do
-    for k, _ in pairs(translations) do
-      set[k] = true
-    end
-  end
-  M.all_keys = {}
-  for k, _ in pairs(set) do
-    table.insert(M.all_keys, k)
-  end
-  table.sort(M.all_keys)
+  set_file_keys(abs_path, key_set)
 
   return data ~= nil
 end
@@ -659,8 +748,23 @@ local function fill_prefix(actual_file, filepath, prefix)
   return result
 end
 
+local function record_file_data(locale, abs_path, prefix, data, line_map, col_map, index_opts)
+  M.translations[locale] = M.translations[locale] or {}
+  M.meta[locale] = M.meta[locale] or {}
+  local key_set = {}
+  for k, v in pairs(data) do
+    local final_key = (prefix or "") .. k
+    M.translations[locale][final_key] = v
+    local line = line_map and line_map[k] or 1
+    local col = (col_map and col_map[k]) or 1
+    M.meta[locale][final_key] = { file = abs_path, line = line, col = col }
+    key_set[final_key] = true
+  end
+  set_file_keys(abs_path, key_set, index_opts)
+end
+
 -- 加载单个文件配置
-local function load_file_config(file_config, locale)
+local function load_file_config(file_config, locale, index_opts)
   local pattern = type(file_config) == "string" and file_config
       or file_config.pattern
   local prefix = type(file_config) == "table" and file_config.prefix or ""
@@ -677,19 +781,11 @@ local function load_file_config(file_config, locale)
       if utils.file_exists(actual_file) then
         local data, line_map, col_map = parse_file(actual_file)
         if data then
-          M.translations[locale] = M.translations[locale] or {}
-          M.meta[locale] = M.meta[locale] or {}
           M.file_prefixes[locale] = M.file_prefixes[locale] or {}
           local abs_store = vim.loop.fs_realpath(actual_file) or vim.fn.fnamemodify(actual_file, ":p")
           M.file_prefixes[locale][abs_store] = actual_prefix
           table.insert(M._translation_files, abs_store)
-          for k, v in pairs(data) do
-            local final_key = actual_prefix .. k
-            M.translations[locale][final_key] = v
-            local line = line_map and line_map[k] or 1
-            local abs_path = vim.loop.fs_realpath(actual_file) or vim.fn.fnamemodify(actual_file, ":p")
-            M.meta[locale][final_key] = { file = abs_path, line = line, col = (col_map and col_map[k]) or 1 }
-          end
+          record_file_data(locale, abs_store, actual_prefix, data, line_map, col_map, index_opts)
         end
       end
     end)
@@ -698,19 +794,11 @@ local function load_file_config(file_config, locale)
     if utils.file_exists(filepath) then
       local data, line_map, col_map = parse_file(filepath)
       if data then
-        M.translations[locale] = M.translations[locale] or {}
-        M.meta[locale] = M.meta[locale] or {}
         M.file_prefixes[locale] = M.file_prefixes[locale] or {}
         local abs_store = vim.loop.fs_realpath(filepath) or vim.fn.fnamemodify(filepath, ":p")
         M.file_prefixes[locale][abs_store] = prefix
         table.insert(M._translation_files, abs_store)
-        for k, v in pairs(data) do
-          local final_key = prefix .. k
-          M.translations[locale][final_key] = v
-          local line = line_map and line_map[k] or 1
-          local abs_path = vim.loop.fs_realpath(filepath) or vim.fn.fnamemodify(filepath, ":p")
-          M.meta[locale][final_key] = { file = abs_path, line = line, col = (col_map and col_map[k]) or 1 }
-        end
+        record_file_data(locale, abs_store, prefix, data, line_map, col_map, index_opts)
       end
     end
   end
@@ -720,6 +808,9 @@ end
 M.load_translations = function()
   M.translations = {}
   M._translation_files = {}
+  M._file_keys = {}
+  M._key_refcount = {}
+  M.all_keys = {}
   local options = config.options
 
   -- Check if auto-detect should run
@@ -774,6 +865,7 @@ M.load_translations = function()
   end
 
   M._active_sources = sources
+  local index_opts = { defer_index = true }
 
   for _, locale in ipairs(locales) do
     for _, source in ipairs(sources) do
@@ -786,22 +878,11 @@ M.load_translations = function()
         ext = filepath:match("{module}%.([%w_]+)")
         if ext then ext = "." .. ext end
       end
-      load_file_config(source, locale)
+      load_file_config(source, locale, index_opts)
     end
   end
 
-  -- 汇总所有 key (合并所有语言)
-  local set = {}
-  for _, translations in pairs(M.translations) do
-    for k, _ in pairs(translations) do
-      set[k] = true
-    end
-  end
-  M.all_keys = {}
-  for k, _ in pairs(set) do
-    table.insert(M.all_keys, k)
-  end
-  table.sort(M.all_keys)
+  rebuild_all_keys_from_refcount()
 
   -- 注册文件监控
   M._setup_file_watchers()
@@ -958,6 +1039,7 @@ function M.reload_translation_buffer(abs_path, locale, bufnr)
   end
 
   -- 写入新数据（复用旧 mark_id）
+  local key_set = {}
   for k, v in pairs(data) do
     local final_key = prefix .. k
     M.translations[locale][final_key] = v
@@ -969,20 +1051,10 @@ function M.reload_translation_buffer(abs_path, locale, bufnr)
     else
       M.meta[locale][final_key] = { file = abs_path, line = line, col = col }
     end
+    key_set[final_key] = true
   end
 
-  -- 更新 all_keys（保持简单，重新聚合）
-  local set = {}
-  for _, translations in pairs(M.translations) do
-    for k, _ in pairs(translations) do
-      set[k] = true
-    end
-  end
-  M.all_keys = {}
-  for k, _ in pairs(set) do
-    table.insert(M.all_keys, k)
-  end
-  table.sort(M.all_keys)
+  set_file_keys(abs_path, key_set)
 
   return true
 end
