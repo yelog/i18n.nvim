@@ -398,6 +398,16 @@ local function format_usage_entry(item)
   return string.format('%s:%d:%d %s', rel, item.line or 1, item.col or 1, preview)
 end
 
+local function sort_usages_for_keys(keys)
+  if not keys then return end
+  for key in pairs(keys) do
+    local list = M.usages[key]
+    if list and #list > 1 then
+      sort_usages(list)
+    end
+  end
+end
+
 local devicons_ok, devicons = pcall(require, 'nvim-web-devicons')
 local list_icon_ns = vim.api.nvim_create_namespace('I18nUsageListIcons')
 local native_preview_ns = vim.api.nvim_create_namespace('I18nUsageNativePreview')
@@ -946,7 +956,7 @@ local function remove_file_entries(file)
   M.file_index[file] = nil
 end
 
-local function record_entries(file, entries, key_set)
+local function record_entries(file, entries, key_set, opts)
   if #entries == 0 then
     return
   end
@@ -954,8 +964,18 @@ local function record_entries(file, entries, key_set)
     M.usages[entry.key] = M.usages[entry.key] or {}
     table.insert(M.usages[entry.key], entry)
   end
-  for key, _ in pairs(key_set) do
-    sort_usages(M.usages[key])
+  local defer_sort = opts and opts.defer_sort
+  if defer_sort then
+    local sort_keys = opts and opts.sort_keys
+    if sort_keys then
+      for key in pairs(key_set) do
+        sort_keys[key] = true
+      end
+    end
+  else
+    for key in pairs(key_set) do
+      sort_usages(M.usages[key])
+    end
   end
   M.file_index[file] = key_set
 end
@@ -1037,12 +1057,14 @@ function M.scan_project_usages(opts)
   M.usages = {}
   M.file_index = {}
   local files = collect_files(opts)
+  local sort_keys = {}
   for _, file in ipairs(files) do
     local entries, key_set = collect_file_usages(file)
     if next(key_set) then
-      record_entries(file, entries, key_set)
+      record_entries(file, entries, key_set, { defer_sort = true, sort_keys = sort_keys })
     end
   end
+  sort_usages_for_keys(sort_keys)
   schedule_display_refresh()
   return files
 end
@@ -1063,7 +1085,7 @@ local function process_async_batch(request_id)
 
     local entries, key_set = collect_file_usages(file)
     if next(key_set) then
-      record_entries(file, entries, key_set)
+      record_entries(file, entries, key_set, { defer_sort = true, sort_keys = async_scan.sort_keys })
     end
 
     async_scan.processed_since_refresh = async_scan.processed_since_refresh + 1
@@ -1084,6 +1106,9 @@ local function process_async_batch(request_id)
     async_scan.files = {}
     async_scan.index = 1
     async_scan.processed_since_refresh = 0
+    local sort_keys = async_scan.sort_keys
+    async_scan.sort_keys = nil
+    sort_usages_for_keys(sort_keys)
     schedule_display_refresh()
     return
   end
@@ -1102,6 +1127,7 @@ function M.refresh_async(opts)
   async_scan.index = 1
   async_scan.active = true
   async_scan.processed_since_refresh = 0
+  async_scan.sort_keys = {}
 
   if opts.refresh_interval and opts.refresh_interval > 0 then
     async_scan.refresh_interval = opts.refresh_interval
@@ -1225,6 +1251,10 @@ function M.setup()
   end
 
   local function start_initial_scan()
+    local usage_opts = (config.options or {}).usage or {}
+    if usage_opts.scan_on_startup == false then
+      return
+    end
     M.refresh_async({ start_delay_ms = 100 })
   end
 

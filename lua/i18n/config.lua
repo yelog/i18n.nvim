@@ -298,6 +298,10 @@ M.defaults = {
   show_locale_file_eol_translation = true,
   -- Whether to append usage counts in locale files alongside translations
   show_locale_file_eol_usage = true,
+  display = {
+    -- Debounce delay (ms) for TextChanged refresh
+    refresh_debounce_ms = 100,
+  },
   diagnostics = true,
   -- Namespace resolver for frameworks like react-i18next that use useTranslation('namespace')
   -- Options:
@@ -345,6 +349,8 @@ M.defaults = {
     notify_no_key = true,
     -- Maximum file size (bytes) to scan for usages; 0 disables the limit
     max_file_size = 0,
+    -- Run a full usage scan on VimEnter
+    scan_on_startup = true,
   },
   -- Filetypes/extensions to scan when collecting key usages in project source files
   func_type = {

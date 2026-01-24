@@ -306,6 +306,8 @@ Common options (all optional when a project file is present):
 - usage.popup_type: picker shown when a key has multiple usages (`vim_ui` | `telescope` | `fzf-lua` | `snacks`, default `vim_ui`)
 - usage.notify_no_key: whether to warn when `:I18nKeyUsages` finds no key under the cursor (default `true`)
 - usage.max_file_size: skip usage scanning for files larger than this many bytes (0 disables)
+- usage.scan_on_startup: run an async usage scan after VimEnter (default `true`)
+- display.refresh_debounce_ms: debounce delay for TextChanged refresh (default `100`)
 - i18n_keys.popup_type: picker backend for browsing keys (`fzf-lua` | `telescope` | `vim_ui` | `snacks`, default `fzf-lua`)
 - show_mode: controls inline rendering (`both` | `translation` | `translation_conceal` | `origin`; defaults to `both` when unset/unknown). `both` appends the translation after the raw key on every line. `translation` hides the key except on the cursor line (where both are shown). `translation_conceal` hides the key and suppresses the translation on the cursor line so you can edit the raw key comfortably. `origin` disables the overlay entirely.
 - show_locale_file_eol_usage: toggle usage badges in locale buffers (default `true`)
@@ -487,6 +489,7 @@ responsive while usage counts backfill in the background.
 - Locale buffers append `← [No usages]` / `← [2 usages]` style badges before the translation so coverage and text remain visually distinct.
 - `:I18nKeyUsages` or `require('i18n').i18n_key_usages()` inspects the key under the cursor: one usage jumps immediately; multiple usages open your configured picker.
 - Saved buffers matching `func_type` are rescanned automatically; trigger a background rescan with `require('i18n').refresh_usages()` if you tweak configuration on the fly (pass `{ sync = true }` to block until completion).
+- Disable the startup scan with `usage = { scan_on_startup = false }` when working in very large repos.
 - Set `usage = { popup_type = 'telescope' | 'fzf-lua' | 'snacks' | 'vim_ui' }` to reuse your preferred picker when resolving multiple usages.
 - Silence the missing-key warning with `usage = { notify_no_key = false }` if you prefer quiet fallbacks.
 - Adjust highlight links via `:hi I18nUsageLabel`, `:hi I18nUsageTranslation`, and `:hi I18nUsageSeparator` if you prefer different colors.

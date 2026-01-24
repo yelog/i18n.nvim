@@ -20,6 +20,81 @@ M._current_locale_index = 1
 -- 光标行缓存，避免重复刷新
 M._cursor_state = {}
 
+local refresh_timers = {}
+
+local function stop_refresh_timer(bufnr)
+  local timer = refresh_timers[bufnr]
+  if timer then
+    timer:stop()
+    timer:close()
+    refresh_timers[bufnr] = nil
+  end
+end
+
+local function schedule_buffer_refresh(bufnr, delay_ms)
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    stop_refresh_timer(bufnr)
+    return
+  end
+  local timer = refresh_timers[bufnr]
+  if not timer then
+    timer = vim.loop.new_timer()
+    refresh_timers[bufnr] = timer
+  else
+    timer:stop()
+  end
+  timer:start(delay_ms, 0, vim.schedule_wrap(function()
+    if not vim.api.nvim_buf_is_valid(bufnr) then
+      stop_refresh_timer(bufnr)
+      return
+    end
+    M.refresh_buffer(bufnr)
+  end))
+end
+
+local function make_comment_checker_cached(bufnr)
+  if not vim or not vim.treesitter or not vim.treesitter.get_parser then
+    return nil
+  end
+
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+
+  local ok_parser, parser_obj = pcall(vim.treesitter.get_parser, bufnr)
+  if not ok_parser or not parser_obj then
+    return nil
+  end
+
+  local ok_tree, trees = pcall(parser_obj.parse, parser_obj)
+  if not ok_tree or not trees or not trees[1] then
+    return nil
+  end
+
+  local root = trees[1]:root()
+  if not root then
+    return nil
+  end
+
+  return function(row, col)
+    if row == nil or col == nil then return false end
+    if row < 0 or col < 0 then return false end
+
+    local node = root:named_descendant_for_range(row, col, row, col)
+    if not node then
+      node = root:descendant_for_range(row, col, row, col)
+    end
+
+    while node do
+      local ntype = node:type()
+      if ntype and ntype:lower():find('comment') then
+        return true
+      end
+      node = node:parent()
+    end
+
+    return false
+  end
+end
+
 -- 获取当前语言
 M.get_current_locale = function()
   local locales = (config.options or {}).locales or {}
@@ -282,7 +357,7 @@ local function refresh_lines_for_cursor(bufnr, line_nums, cursor_line)
   local show_mode = get_show_mode()
   local default_locale = M.get_current_locale()
   local patterns = config.options.func_pattern
-  local comment_checker = utils.make_comment_checker(bufnr)
+  local comment_checker = make_comment_checker_cached(bufnr)
 
   for _, line_num in ipairs(ordered) do
     local line = vim.api.nvim_buf_get_lines(bufnr, line_num - 1, line_num, false)[1]
@@ -465,7 +540,7 @@ M.refresh_buffer = function(bufnr)
 
   local comment_checker = nil
   if not file_locale then
-    comment_checker = utils.make_comment_checker(bufnr)
+    comment_checker = make_comment_checker_cached(bufnr)
   end
 
   for line_num, line in ipairs(lines) do
@@ -552,7 +627,7 @@ function M.get_key_under_cursor(resolve_ns)
   local line = vim.api.nvim_get_current_line()
   local bufnr = vim.api.nvim_get_current_buf()
   local patterns = config.options.func_pattern
-  local comment_checker = utils.make_comment_checker(bufnr)
+  local comment_checker = make_comment_checker_cached(bufnr)
   local keys = extract_i18n_keys(bufnr, cursor[1], line, patterns, comment_checker)
   local cur_col1 = cursor[2] + 1 -- 转为 1-based 列
   for _, key_info in ipairs(keys) do
@@ -710,9 +785,16 @@ M.setup_replace_mode = function()
     pattern = '*',
     callback = function(args)
       if not is_supported_ft(args.buf) then return end
-      vim.defer_fn(function()
+      local delay = 100
+      local display_opts = (config.options or {}).display
+      if type(display_opts) == 'table' and type(display_opts.refresh_debounce_ms) == 'number' then
+        delay = display_opts.refresh_debounce_ms
+      end
+      if delay <= 0 then
         M.refresh_buffer(args.buf)
-      end, 100)
+      else
+        schedule_buffer_refresh(args.buf, delay)
+      end
     end
   })
 

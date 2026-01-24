@@ -121,7 +121,8 @@ filetypes / ft    {string}  Restrict processing (defaults to
                           { 'vue','typescript','javascript','typescriptreact',
                           'javascriptreact','tsx','jsx','java' })
 usage             {table}  Usage scan options (popup_type, notify_no_key,
-                          max_file_size)
+                          max_file_size, scan_on_startup)
+display           {table}  Display options (refresh_debounce_ms)
 show_mode         string    Controls inline rendering: 'both' | 'translation' |
                           'translation_conceal' | 'origin' (fallback 'both'
                           for empty/unknown values). 'translation' hides the
@@ -292,6 +293,7 @@ Usage scans initialize asynchronously after |VimEnter| so startup remains
 responsive; counts backfill in the background. Trigger another background
 pass with `require('i18n').refresh_usages()` or force a blocking rescan with
 `require('i18n').refresh_usages({ sync = true })`.
+Disable the startup scan with `usage = { scan_on_startup = false }`.
 
 ==============================================================================
 KEYMAPS                                                 *i18n.nvim-keymaps*
