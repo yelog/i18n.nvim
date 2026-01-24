@@ -311,7 +311,7 @@ M.defaults = {
     't',
     '$t',
   },
-  locales = { "en", "zh" },
+  locales = {},
   sources = {
     "src/locales/{locales}.json",
   },

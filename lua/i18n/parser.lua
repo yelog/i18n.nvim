@@ -570,11 +570,13 @@ M.load_translations = function()
       -- Store detected sources in options for reference
       options._detected_sources = detected_sources
 
-      -- When auto_detect is enabled, always use detected locales if available
-      -- This is important because the locale directory names must match exactly
-      if detected_locales and #detected_locales > 0 then
+      -- Only use detected locales when user hasn't configured locales (empty)
+      -- This allows users to explicitly set locales while still using auto-detected sources
+      if detected_locales and #detected_locales > 0 and #locales == 0 then
         locales = detected_locales
         options._detected_locales = detected_locales
+        -- Update config.options.locales so other modules can access the detected locales
+        options.locales = detected_locales
       end
 
       -- Notify user about auto-detection results (only once per session)
