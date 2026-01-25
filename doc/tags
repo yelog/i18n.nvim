@@ -1,5 +1,6 @@
 i18n.nvim	i18n.nvim.txt	/*i18n.nvim*
 i18n.nvim-api	i18n.nvim.txt	/*i18n.nvim-api*
+i18n.nvim-auto-detect	i18n.nvim.txt	/*i18n.nvim-auto-detect*
 i18n.nvim-blink	i18n.nvim.txt	/*i18n.nvim-blink*
 i18n.nvim-commands	i18n.nvim.txt	/*i18n.nvim-commands*
 i18n.nvim-config	i18n.nvim.txt	/*i18n.nvim-config*
@@ -13,6 +14,7 @@ i18n.nvim-install	i18n.nvim.txt	/*i18n.nvim-install*
 i18n.nvim-intro	i18n.nvim.txt	/*i18n.nvim-intro*
 i18n.nvim-keymaps	i18n.nvim.txt	/*i18n.nvim-keymaps*
 i18n.nvim-license	i18n.nvim.txt	/*i18n.nvim-license*
+i18n.nvim-namespace	i18n.nvim.txt	/*i18n.nvim-namespace*
 i18n.nvim-navigation	i18n.nvim.txt	/*i18n.nvim-navigation*
 i18n.nvim-options	i18n.nvim.txt	/*i18n.nvim-options*
 i18n.nvim-popup	i18n.nvim.txt	/*i18n.nvim-popup*

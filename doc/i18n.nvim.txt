@@ -100,6 +100,7 @@ Reapply after editing project config: >
 OPTIONS TABLE                                          *i18n.nvim-options*
 
 Name              Type       Description
+activation        string     Activation mode: 'auto' | 'lazy' | 'manual' | 'eager'
 locales           {string}   Ordered locales; first = default
 sources           {string|table} Patterns with placeholders {locales} {module}
 auto_detect       bool|table Auto-detect sources from project structure.
@@ -114,12 +115,12 @@ func_pattern      {string|table}
 namespace_resolver bool|string|function|table
                           Detect namespace from framework hooks (e.g.
                           useTranslation('ns')). See |i18n.nvim-namespace|.
-                          Values: false (default), 'auto', 'react_i18next',
+                          Values: 'auto' (default), false, 'react_i18next',
                           'vue_i18n', custom function, or per-filetype table.
-namespace_separator string  Separator between namespace and key (default ':')
+namespace_separator string  Separator between namespace and key (default '.')
 filetypes / ft    {string}  Restrict processing (defaults to
                           { 'vue','typescript','javascript','typescriptreact',
-                          'javascriptreact','tsx','jsx','java' })
+                          'javascriptreact','tsx','jsx','java','json','yaml','jproperties' })
 usage             {table}  Usage scan options (popup_type, notify_no_key,
                           max_file_size, scan_on_startup)
 display           {table}  Display options (refresh_debounce_ms)
@@ -129,7 +130,9 @@ show_mode         string    Controls inline rendering: 'both' | 'translation' |
                           raw key except on the cursor line; 'translation_conceal'
                           also suppresses the translation on the cursor line;
                           'origin' disables overlays entirely.
-diagnostic        bool|tbl  false disables; true default; table -> opts for
+show_locale_file_eol_translation bool  Show EOL translation in locale files
+show_locale_file_eol_usage bool  Show usage badges in locale files
+diagnostic        bool|tbl  false disables; enabled by default; table -> opts for
                             vim.diagnostic.set
 navigation.open_cmd string  edit|vsplit|split|tabedit
 
@@ -226,20 +229,20 @@ prepend it to keys for lookup.
 
 Example React component: >
   const { t } = useTranslation('common');
-  const message = t('greeting');  // Plugin resolves to 'common:greeting'
+  const message = t('greeting');  // Plugin resolves to 'common.greeting' by default
 <
 
 Configuration: >
   require('i18n').setup({
     namespace_resolver = 'auto',  -- or 'react_i18next', 'vue_i18n', etc.
-    namespace_separator = ':',    -- separator between namespace and key
+    namespace_separator = '.',    -- set ':' for i18next standard
   })
 <
 
 Available resolver values:
-  false             Disabled (default), no namespace resolution
-  'auto'            Auto-detect framework based on filetype
+  'auto'            Auto-detect framework based on filetype (default)
                     (tsx/jsx -> react_i18next, vue -> vue_i18n)
+  false             Disabled, no namespace resolution
   'react_i18next'   Detect useTranslation('namespace') in React components
   'vue_i18n'        Detect useI18n({ namespace: '...' }) in Vue components
   function          Custom function(bufnr, key, line, col) -> namespace|nil
@@ -281,12 +284,19 @@ Example .i18nrc.lua: >
 ==============================================================================
 COMMANDS                                               *i18n.nvim-commands*
 
+:I18nEnable              Manually activate plugin (useful when activation=manual)
+:I18nDisable             Deactivate and clear overlays
+:I18nStatus              Show current status (activation/locales/loaded keys)
+:I18nDetectFramework     Show detected framework info
+:I18nReload              Reload locales and kick off a usage rescan
 :I18nNextLocale          Cycle display locale (rotates locales array)
 :I18nToggleOrigin        Toggle origin visibility while translations stay active (`I18n.toggle_origin()`)
 :I18nToggleTranslation   Toggle inline translation overlay on/off (`I18n.toggle_translation()`)
 :I18nToggleLocaleFileEol Toggle EOL virtual translation in locale files (`I18n.toggle_locale_file_eol()`)
+:I18nShowTranslations    Show popup of translations for key under cursor
+:I18nDefinitionNextLocale Jump to the same key in the next locale file
 :I18nKeyUsages           Jump to usages of the key under cursor
-:I18nReload              Reload locales and kick off a usage rescan
+:I18nAddKey              Interactive add-missing-key flow
 
 All refresh inline display automatically.
 
