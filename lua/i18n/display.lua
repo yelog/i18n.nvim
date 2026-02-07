@@ -747,6 +747,32 @@ M.show_popup = function()
     end
   end, { buffer = buf, nowait = true, silent = true })
 
+  local function normalize_popup_keys(value)
+    if type(value) == 'string' then
+      return { value }
+    end
+    if type(value) == 'table' then
+      return value
+    end
+    return {}
+  end
+
+  local popup_cfg = (config.options or {}).translation_popup
+  local popup_keys = type(popup_cfg) == 'table' and popup_cfg.keys or nil
+  local copy_keys = popup_keys and popup_keys.copy_key or nil
+  local resolved_copy_keys = normalize_popup_keys(copy_keys)
+  if #resolved_copy_keys > 0 then
+    local function copy_i18n_key()
+      vim.fn.setreg('+', current_key)
+      vim.notify(string.format('[i18n] Copied key: %s', current_key), vim.log.levels.INFO)
+    end
+    for _, lhs in ipairs(resolved_copy_keys) do
+      if type(lhs) == 'string' and lhs ~= '' then
+        vim.keymap.set('n', lhs, copy_i18n_key, { buffer = buf, nowait = true, silent = true })
+      end
+    end
+  end
+
   -- 光标移动 / buffer 切换自动关闭
   local group = vim.api.nvim_create_augroup('I18nPopupAutoClose', { clear = true })
   vim.api.nvim_create_autocmd({ 'CursorMoved', 'CursorMovedI', 'BufEnter', 'BufLeave' }, {

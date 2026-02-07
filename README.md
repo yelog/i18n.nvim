@@ -139,8 +139,8 @@ i18n_keys = { popup_type = 'telescope' | 'vim_ui' | 'snacks' | 'fzf-lua' }
 
 Default actions (fzf-lua):
 - `<CR>` copy key
-- `<C-y>` copy current locale translation
-- `<C-j>` jump (current locale first, fallback to default)
+- `<C-y>` copy display-locale translation
+- `<C-j>` jump (display locale first, fallback to default)
 - `<C-l>` choose locale then jump
 - `<C-x>` split, `<C-v>` vsplit, `<C-t>` tab
 
@@ -198,6 +198,15 @@ vim.keymap.set({ 'n', 'i' }, '<C-k>', function()
 end, { desc = 'i18n popup or signature help' })
 ```
 
+Popup keymaps:
+```lua
+translation_popup = {
+  keys = {
+    copy_key = { '<c-y>' }, -- copy i18n key while popup is open
+  },
+}
+```
+
 **Usage Scanner**
 - Uses `rg --files` and falls back to `git ls-files --exclude-standard`.
 - `:I18nKeyUsages` jumps to usages; multiple hits open your configured picker.
@@ -253,6 +262,9 @@ Display:
 
 Diagnostics:
 - `diagnostic`: enabled by default; `false` disables; a table is forwarded to `vim.diagnostic.set`.
+
+Popup:
+- `translation_popup.keys.copy_key` (default: `<C-y>`): copy i18n key while the translation popup is open.
 
 Pickers:
 - `i18n_keys.popup_type` (default: `'fzf-lua'`): `fzf-lua` | `telescope` | `vim_ui` | `snacks`.

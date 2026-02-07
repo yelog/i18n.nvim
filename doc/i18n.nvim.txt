@@ -134,6 +134,7 @@ show_locale_file_eol_translation bool  Show EOL translation in locale files
 show_locale_file_eol_usage bool  Show usage badges in locale files
 diagnostic        bool|tbl  false disables; enabled by default; table -> opts for
                             vim.diagnostic.set
+translation_popup {table}  Translation popup keymaps (e.g. copy_key)
 navigation.open_cmd string  edit|vsplit|split|tabedit
 
 Source item as table:  { pattern = "src/.../{locales}/{module}.ts",
@@ -350,6 +351,16 @@ Show all translations for key under cursor in a floating window: >
 <
 Returns false if no key / translations. Auto-closes on movement events.
 
+Popup keymaps (when the popup is open): >
+  require('i18n').setup({
+    translation_popup = {
+      keys = {
+        copy_key = { "<c-y>" }, -- copy i18n key
+      },
+    },
+  })
+<
+
 ==============================================================================
 I18N KEYS PICKER                                      *i18n.nvim-i18n-keys*
 
@@ -374,8 +385,8 @@ The configuration table also hosts backend-specific tweaks:
 
 When using the fzf-lua backend the default in-picker actions are:
   <CR>  copy key
-  <C-y> copy current locale translation
-  <C-j> jump (current display locale, fallback default locale)
+  <C-y> copy display-locale translation
+  <C-j> jump (display locale first, fallback default locale)
   <C-l> choose locale then jump
   <C-x> split jump
   <C-v> vsplit jump

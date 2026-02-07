@@ -370,8 +370,8 @@ M.defaults = {
     -- Use Vim-style notation (<cr>, <c-j>, etc.); they will be converted to keys recognized by fzf
     keys = {
       copy_key           = { "<cr>" },  -- Copy i18n key
-      copy_translation   = { "<c-y>" }, -- Copy translation of current display language
-      jump               = { "<c-j>" }, -- Jump to current display language (fallback to default language if failed)
+      copy_translation   = { "<c-y>" }, -- Copy translation of display locale
+      jump               = { "<c-j>" }, -- Jump to display locale (fallback to default locale if failed)
       split_jump         = { "<c-x>" }, -- Horizontal split jump
       vsplit_jump        = { "<c-v>" }, -- Vertical split jump
       tab_jump           = { "<c-t>" }, -- Tab page jump
@@ -384,7 +384,12 @@ M.defaults = {
     show_missing = true,
     missing_style = "Error",
     preview_order = "config", -- config|current_first|default_first
-  }
+  },
+  translation_popup = {
+    keys = {
+      copy_key = { "<c-y>" }, -- Copy i18n key while popup is open
+    },
+  },
 }
 
 -- Project-level configuration cache
