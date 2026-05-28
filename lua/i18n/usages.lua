@@ -870,46 +870,46 @@ local function select_with_snacks(entries, key, callback)
   local snack_items = {}
   for _, item in ipairs(build_items) do
     local entry = item.value
+    local col0 = math.max((entry.col or 1) - 1, 0)
     table.insert(snack_items, {
       text = item.display,
       value = entry,
       file = entry.file,
-      lnum = entry.line or 1,
-      col = entry.col or 1,
-      preview = {
-        file = entry.file,
-        lnum = entry.line or 1,
-        col = entry.col or 1,
-      },
+      pos = { entry.line or 1, col0 },
+      end_pos = { entry.line or 1, col0 + #key },
+      line = entry.preview or '',
     })
   end
 
-  local select_fn = picker.select or picker.pick or picker.start
-  if type(select_fn) ~= 'function' then
+  local pick_fn = picker.pick or picker.start
+  if type(pick_fn) ~= 'function' then
     return select_with_native_popup(entries, key, callback)
   end
 
   local config = {
     title = string.format('Usages of %s', key),
     items = snack_items,
-    preview = "preview",
-    confirm = function(p)
-      local selection = p and p:selected({ fallback = true })
-      local first = selection and selection[1]
-      if first and first.value then
-        callback(first.value)
+    format = 'text',
+    preview = 'file',
+    confirm = function(p, item)
+      local selection = item
+      if not selection and p and p.selected then
+        local selected = p:selected({ fallback = true })
+        selection = selected and selected[1]
       end
+      local choice = selection and selection.value or nil
       if p and p.close then
         p:close()
+      end
+      if choice then
+        vim.schedule(function()
+          callback(choice)
+        end)
       end
     end,
   }
 
-  if picker.format and picker.format.ui_select then
-    config.format = picker.format.ui_select(nil, #snack_items)
-  end
-
-  local ok_call, err = pcall(select_fn, picker, config)
+  local ok_call, err = pcall(pick_fn, config)
   if not ok_call then
     vim.notify('[i18n] snacks picker failed: ' .. tostring(err), vim.log.levels.WARN)
     return select_with_native_popup(entries, key, callback)
