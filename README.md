@@ -210,6 +210,7 @@ translation_popup = {
 **Usage Scanner**
 - Uses `rg --files` and falls back to `git ls-files --exclude-standard`.
 - `:I18nKeyUsages` jumps to usages; multiple hits open your configured picker.
+- Commented-out i18n calls are ignored with Tree-sitter when available, with a lightweight fallback for common comment syntaxes.
 - Locale buffers can display usage badges (e.g. `← [2 usages]`).
 
 Options:

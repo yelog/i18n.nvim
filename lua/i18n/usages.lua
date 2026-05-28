@@ -21,7 +21,9 @@ local ft_glob_map = {
 }
 
 local ft_to_ts = {
+  typescript = 'typescript',
   typescriptreact = 'tsx',
+  javascript = 'javascript',
   javascriptreact = 'javascript',
   tsx = 'tsx',
   jsx = 'jsx',
@@ -32,7 +34,10 @@ local ft_to_ts = {
   js = 'javascript',
   mjs = 'javascript',
   cjs = 'javascript',
+  html = 'html',
+  css = 'css',
   py = 'python',
+  python = 'python',
   java = 'java',
   lua = 'lua',
 }
@@ -368,6 +373,16 @@ local function collect_file_usages(file)
     if lang and lang ~= '' then
       local content = table.concat(lines, '\n')
       comment_checker = utils.make_comment_checker_from_content(content, lang)
+    end
+  end
+
+  if not comment_checker and utils.make_comment_checker_from_lines then
+    local lang = ft
+    if lang and ft_to_ts[lang] then
+      lang = ft_to_ts[lang]
+    end
+    if lang and lang ~= '' then
+      comment_checker = utils.make_comment_checker_from_lines(lines, lang)
     end
   end
 

@@ -163,8 +163,10 @@ FUNC PATTERN                                       *i18n.nvim-func-pattern*
   first capture group. Strings containing Lua pattern tokens (`%`, `(`, `[`)
   are treated as raw patterns automatically for backwards compatibility.
 
-All detected matches inside comment nodes are automatically ignored, ensuring
-commented examples do not trigger completion, diagnostics, or other helpers.
+All detected matches inside comments are automatically ignored, ensuring
+commented examples do not trigger completion, diagnostics, usage scans, or
+other helpers. Tree-sitter comment nodes are used when available, with a
+lightweight fallback for common comment syntaxes.
 
 If every entry resolves to an empty matcher set, the defaults `{ 't', '$t' }`
 are reinstated and a warning is shown.
@@ -306,6 +308,7 @@ responsive; counts backfill in the background. Trigger another background
 pass with `require('i18n').refresh_usages()` or force a blocking rescan with
 `require('i18n').refresh_usages({ sync = true })`.
 Disable the startup scan with `usage = { scan_on_startup = false }`.
+Commented-out i18n calls are ignored when collecting usages.
 
 ==============================================================================
 KEYMAPS                                                 *i18n.nvim-keymaps*
