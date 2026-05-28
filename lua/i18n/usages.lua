@@ -294,6 +294,36 @@ local function extract_keys(line, patterns)
   return matches
 end
 
+local function detect_usage_key_at_cursor()
+  local patterns = config.options and config.options.func_pattern or {}
+  if type(patterns) ~= 'table' or vim.tbl_isempty(patterns) then
+    return nil
+  end
+
+  local bufnr = vim.api.nvim_get_current_buf()
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  local line_nr = cursor[1]
+  local col = cursor[2] + 1
+  local line = vim.api.nvim_get_current_line():gsub('\r$', '')
+  local matches = extract_keys(line, patterns)
+  if vim.tbl_isempty(matches) then
+    return nil
+  end
+
+  local comment_checker = utils.make_comment_checker(bufnr)
+  for _, match in ipairs(matches) do
+    local key_start = match.key_start or match.match_start or 1
+    local key_end = key_start + #match.key - 1
+    if col >= key_start and col <= key_end then
+      if not comment_checker or not comment_checker(line_nr - 1, key_start - 1) then
+        return namespace.resolve(bufnr, match.key, line_nr, key_start)
+      end
+    end
+  end
+
+  return nil
+end
+
 local function collect_file_usages(file)
   if vim.fn.filereadable(file) ~= 1 then
     return {}, {}
@@ -1193,6 +1223,11 @@ local function detect_key_at_cursor()
         return key_path, false
       end
     end
+  end
+
+  local usage_key = detect_usage_key_at_cursor()
+  if usage_key and M.usages[usage_key] then
+    return usage_key, false
   end
 
   return nil, false
