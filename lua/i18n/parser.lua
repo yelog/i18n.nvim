@@ -465,7 +465,7 @@ local function parse_js(content)
   local line_map = {}
   local col_map = {}
 
-  -- 查找 export default/module.exports 的对象节点
+  -- 查找 export default / module.exports / export const X = {...} 的对象节点
   local function find_export_object(node)
     for child in node:iter_children() do
       if child:type() == "export_statement" or child:type() == "expression_statement" then
@@ -476,6 +476,19 @@ local function parse_js(content)
             for g in grand:iter_children() do
               if g:type() == "object" then
                 return g
+              end
+            end
+          elseif grand:type() == "lexical_declaration" or grand:type() == "variable_declaration" then
+            -- named export, e.g. `export const messages = {...}` (optionally `as const`)
+            for decl in grand:iter_children() do
+              if decl:type() == "variable_declarator" then
+                local value = decl:field("value")[1]
+                if value and value:type() == "as_expression" then
+                  value = value:named_child(0)
+                end
+                if value and value:type() == "object" then
+                  return value
+                end
               end
             end
           end
