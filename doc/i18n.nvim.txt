@@ -143,6 +143,11 @@ Source item as table:  { pattern = "src/.../{locales}/{module}.ts",
 Placeholders: {locales} expands per locale; custom placeholders (e.g.
 {module}, {bu}) are collected by scanning directory parts.
 
+JS/TS sources are parsed with Tree-sitter. Supported translation object
+exports include `export default { ... }`, `module.exports = { ... }`, and
+named export objects such as `export const messages = { ... }` with an
+optional trailing `as const`.
+
 ------------------------------------------------------------------------------
 FUNC PATTERN                                       *i18n.nvim-func-pattern*
 
@@ -481,6 +486,16 @@ Composite sources: >
       { pattern = "modules/{module}/i18n/{locales}.ts", prefix = "{module}." },
     },
   })
+<
+
+Named export TS module: >
+  -- modules/billing/i18n/en.ts
+  export const messages = {
+    title: 'Billing',
+    actions: {
+      save: 'Save',
+    },
+  } as const
 <
 
 Popup fallback: >

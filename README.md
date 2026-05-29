@@ -504,7 +504,7 @@ require('i18n').setup(require('i18n').options)
 ## 🧠 How It Works
 
 - JSON/YAML/.properties files are read and decoded (.properties uses simple `key=value` parsing; YAML uses a simplified parser covering common scenarios).
-- JS/TS modules are parsed with Tree-sitter to find exported objects (supports `export default`, `module.exports`, direct object literals, and nested objects). Parsed keys and string values are normalized and flattened.
+- JS/TS modules are parsed with Tree-sitter to find exported objects (supports `export default`, `module.exports`, named export objects like `export const messages = {...}`, optional `as const`, direct object literals, and nested objects). Parsed keys and string values are normalized and flattened.
 - Translations are merged into an internal table keyed by language and dot-separated keys.
 
 ## 📗 Examples
@@ -562,6 +562,16 @@ return {
     { pattern = 'src/locales/{locales}/{module}.ts', prefix = '{module}.' }
   }
 }
+```
+
+Example `src/locales/en-US/common.ts`:
+```ts
+export const common = {
+  save: 'Save',
+  menu: {
+    settings: 'Settings',
+  },
+} as const
 ```
 
 ### Multi-module + multi-business
