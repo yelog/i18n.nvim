@@ -10,12 +10,18 @@ local function is_absolute_path(path)
   return path:sub(1, 1) == '/'
 end
 
+local function normalize_autocmd_pattern(pattern)
+  if type(pattern) ~= 'string' then return pattern end
+  return pattern:gsub('\\', '/')
+end
+
 local function to_absolute_pattern(pattern)
   if not pattern or pattern == '' then return nil end
+  pattern = normalize_autocmd_pattern(pattern)
   if is_absolute_path(pattern) then
     return pattern
   end
-  local cwd = vim.fn.getcwd()
+  local cwd = normalize_autocmd_pattern(vim.fn.getcwd())
   if cwd:sub(-1) == '/' then
     return cwd .. pattern
   end
@@ -121,6 +127,10 @@ function M._setup_file_watchers()
   end
   if #patterns == 0 then
     return
+  end
+
+  for i, pattern in ipairs(patterns) do
+    patterns[i] = normalize_autocmd_pattern(pattern)
   end
 
   vim.api.nvim_create_autocmd({ 'BufWritePost', 'BufDelete', 'FileChangedShellPost' }, {
