@@ -240,6 +240,10 @@ local function apply_framework_suggestions(fw_result)
     opts.namespace_resolver = suggestions.namespace_resolver
   end
 
+  if suggestions.message_source and opts.message_source and opts.message_source.provider == 'auto' then
+    opts.message_source = vim.tbl_deep_extend('force', opts.message_source, suggestions.message_source)
+  end
+
   -- Store detected framework info
   opts._detected_framework = fw_result.framework_name
   opts._detected_framework_display = fw_result.framework and fw_result.framework.display_name

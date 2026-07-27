@@ -338,6 +338,30 @@ src/views/calendar/locales/en/events.ts
 - Notifications are shown only when `auto_detect.notify = true` (default: off).
 - Access detected configuration via `require('i18n.config').options._detected_sources`.
 
+### Spring MessageSource
+
+`message_source.provider = 'auto'` (the default) detects Maven Spring projects
+with message bundles and loads their `.properties` files using Spring-style
+basename and locale conventions. Set `provider = 'spring_messages'` to force
+this provider or `provider = 'generic'` to use only `sources`.
+
+```lua
+require('i18n').setup({
+  message_source = {
+    provider = 'spring_messages',
+    spring_messages = {
+      resource_root = 'src/main/resources',
+      fallback_to_default_bundle = true,
+      fallback_to_system_locale = false,
+    },
+  },
+})
+```
+
+Spring message lookups are always isolated to the current buffer's nearest
+Maven module. A key absent from that module returns no translation; sibling and
+parent modules are never used as fallbacks.
+
 ### 🔧 Namespace Resolver (React i18next / Vue i18n)
 
 For frameworks like **react-i18next** that use `useTranslation('namespace')` to scope translation keys, the plugin can automatically detect the namespace and prepend it to keys for lookup.

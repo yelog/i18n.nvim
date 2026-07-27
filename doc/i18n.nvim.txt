@@ -238,6 +238,28 @@ Notes:
   - Notifications are shown only when `auto_detect.notify = true` (default: off)
   - Access via `require('i18n.config').options._detected_sources`
 
+=============================================================================
+SPRING MESSAGES                                                     *i18n-spring*
+
+Spring MessageSource bundles can be selected with: >
+  require('i18n').setup({
+    message_source = {
+      provider = 'spring_messages', -- 'auto', 'generic', or 'spring_messages'
+      spring_messages = {
+        resource_root = 'src/main/resources',
+        fallback_to_default_bundle = true,
+        fallback_to_system_locale = false,
+      },
+    },
+  })
+<
+The default provider, `auto`, chooses Spring messages for Maven Spring projects
+with matching property bundles. The provider reads `spring.messages.basename`
+from application/bootstrap properties or YAML and otherwise uses `messages`.
+
+Each lookup is strictly isolated to the current buffer's nearest `pom.xml`
+module. Missing keys do not fall back to parent or sibling modules.
+
 ------------------------------------------------------------------------------
 NAMESPACE RESOLVER                                   *i18n.nvim-namespace*
 

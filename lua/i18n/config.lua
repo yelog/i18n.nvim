@@ -327,6 +327,16 @@ M.defaults = {
   sources = {
     "src/locales/{locales}.json",
   },
+  -- Resource provider. 'auto' selects Spring MessageSource when Maven Spring
+  -- bundles are present; otherwise the configured generic sources are used.
+  message_source = {
+    provider = 'auto', -- 'auto' | 'generic' | 'spring_messages'
+    spring_messages = {
+      resource_root = 'src/main/resources',
+      fallback_to_default_bundle = true,
+      fallback_to_system_locale = false,
+    },
+  },
   -- Auto-detect sources from project structure
   -- When enabled (or when sources is empty), scans for locale directories automatically
   -- Options:

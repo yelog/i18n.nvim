@@ -20,10 +20,10 @@ local function get_current_locale()
   return locales[1]
 end
 
-local function build_preview_lines(key)
+local function build_preview_lines(key, context_path)
   if not key then return { 'No key' } end
   local locales = get_locales()
-  local all = parser.get_all_translations(key) or {}
+  local all = parser.get_all_translations(key, context_path) or {}
   local meta = parser.meta or {}
   local current = get_current_locale()
   local default_locale = locales[1]
@@ -80,24 +80,14 @@ local function build_preview_lines(key)
 end
 
 local function collect_entries()
-  local translations = parser.translations or {}
-  local key_map = {}
-  for _, locale_tbl in pairs(translations) do
-    for key, _ in pairs(locale_tbl) do
-      key_map[key] = true
-    end
-  end
-  local keys = {}
-  for key in pairs(key_map) do
-    table.insert(keys, key)
-  end
-  table.sort(keys)
+  local context_path = vim.api.nvim_buf_get_name(0)
+  local keys = parser.get_keys(context_path)
 
   local entries = {}
   local current = get_current_locale()
   for _, key in ipairs(keys) do
-    local translation = parser.get_translation(key, current) or ''
-    local preview_lines = build_preview_lines(key)
+    local translation = parser.get_translation(key, current, context_path) or ''
+    local preview_lines = build_preview_lines(key, context_path)
     local icon = ''
     local icon_hl
     if devicons_ok then

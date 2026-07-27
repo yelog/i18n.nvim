@@ -1,6 +1,7 @@
 local M = {}
 local config = require('i18n.config')
 local utils = require('i18n.utils')
+local spring_messages = require('i18n.spring_messages')
 
 local function is_absolute_path(path)
   if not path or path == '' then return false end
@@ -128,6 +129,7 @@ M._key_refcount = {}
 -- Multiple Maven modules can define the same key. Keep candidates separate so
 -- a source buffer resolves its own module before falling back to the flat map.
 M._module_entries = {}
+M._spring_messages = false
 
 local function nearest_module_root(path)
   if type(path) ~= 'string' or path == '' then return nil end
@@ -896,6 +898,7 @@ M.load_translations = function()
   M._file_keys = {}
   M._key_refcount = {}
   M._module_entries = {}
+  M._spring_messages = false
   M.all_keys = {}
   local options = config.options
 
@@ -903,8 +906,21 @@ M.load_translations = function()
   local auto_detect = require('i18n.auto_detect')
   local sources = options.sources or {}
   local locales = options.locales or {}
+  local provider = ((options.message_source or {}).provider) or 'auto'
+  local spring_descriptors, spring_locales = {}, {}
+  if provider ~= 'generic' then
+    spring_descriptors, spring_locales = spring_messages.discover(options, provider == 'auto')
+  end
+  if provider == 'spring_messages' or #spring_descriptors > 0 then
+    M._spring_messages = true
+    if #locales == 0 and #spring_locales > 0 then
+      locales = spring_locales
+      options.locales = locales
+      options._detected_locales = locales
+    end
+  end
 
-  if auto_detect.should_auto_detect(options) then
+  if not M._spring_messages and auto_detect.should_auto_detect(options) then
     local detect_opts = auto_detect.get_options(options)
     local detected_sources, detected_locales = auto_detect.detect(detect_opts)
     local auto_detect_opts = options.auto_detect
@@ -966,8 +982,13 @@ M.load_translations = function()
   M._active_sources = sources
   local index_opts = { defer_index = true }
 
-  for _, locale in ipairs(locales) do
-    for _, source in ipairs(sources) do
+  if M._spring_messages then
+    for _, descriptor in ipairs(spring_descriptors) do
+      load_file_config(descriptor.path, descriptor.locale, index_opts)
+    end
+  else
+    for _, locale in ipairs(locales) do
+      for _, source in ipairs(sources) do
       -- 判断 {module} 后面是文件后缀还是 /
       local pattern = type(source) == "string" and source
           or source.pattern
@@ -977,7 +998,8 @@ M.load_translations = function()
         ext = filepath:match("{module}%.([%w_]+)")
         if ext then ext = "." .. ext end
       end
-      load_file_config(source, locale, index_opts)
+        load_file_config(source, locale, index_opts)
+      end
     end
   end
 
@@ -1011,6 +1033,13 @@ end
 M.get_translation = function(key, locale, context_path)
   local locales = config.options.locales
   locale = locale or (locales and locales[1])
+  if M._spring_messages then
+    local scoped = module_entry(key, locale, context_path) or module_entry(key, '__default', context_path)
+    if scoped then return scoped.value end
+    local language = locale and locale:match('^([^_-]+)')
+    scoped = language and module_entry(key, language, context_path) or nil
+    return scoped and scoped.value or nil
+  end
   if not M.translations[locale] then
     return nil
   end
@@ -1048,6 +1077,13 @@ end
 -- 获取所有语言的翻译
 M.get_all_translations = function(key, context_path)
   local result = {}
+  if M._spring_messages then
+    for _, locale in ipairs(config.options.locales or {}) do
+      local value = M.get_translation(key, locale, context_path)
+      if value ~= nil then result[locale] = value end
+    end
+    return result
+  end
   for locale, translations in pairs(M.translations) do
     -- Try exact match first
     local scoped = module_entry(key, locale, context_path)
@@ -1083,11 +1119,35 @@ M.get_key_location = function(key, locale, context_path)
   if not locale then return nil end
   local scoped = module_entry(key, locale, context_path)
   if scoped then return scoped.meta end
+  if M._spring_messages then
+    scoped = module_entry(key, '__default', context_path)
+    if scoped then return scoped.meta end
+    local language = locale and locale:match('^([^_-]+)')
+    scoped = language and module_entry(key, language, context_path) or nil
+    return scoped and scoped.meta or nil
+  end
   local meta_locale = M.meta[locale]
   if meta_locale and meta_locale[key] then
     return meta_locale[key]
   end
   return nil
+end
+
+M.get_keys = function(context_path)
+  if not M._spring_messages then return M.all_keys or {} end
+  local root = nearest_module_root(context_path)
+  if not root then return {} end
+  local keys, seen = {}, {}
+  for _, entries in pairs(M._module_entries) do
+    for key, modules in pairs(entries) do
+      if modules[root] and not seen[key] then
+        seen[key] = true
+        table.insert(keys, key)
+      end
+    end
+  end
+  table.sort(keys)
+  return keys
 end
 
 M.get_all_keys = function()

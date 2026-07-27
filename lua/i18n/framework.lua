@@ -98,6 +98,7 @@ M.frameworks = {
     },
     func_type = { 'java' },
     namespace_resolver = false,
+    message_source = { provider = 'spring_messages', spring_messages = {} },
   },
 }
 
@@ -216,6 +217,14 @@ function M.detect(opts)
       result.config_file = result.config_file or cfg_file
     end
 
+    if name == 'spring-messages' then
+      local spring_messages = require('i18n.spring_messages')
+      local bundles = spring_messages.discover({ message_source = { spring_messages = {} } }, true)
+      if #bundles == 0 then
+        matched = false
+      end
+    end
+
     if matched then
       table.insert(candidates, {
         name = name,
@@ -252,8 +261,30 @@ function M.detect(opts)
       func_pattern = fw.func_pattern,
       func_type = fw.func_type,
       namespace_resolver = fw.namespace_resolver,
+      message_source = fw.message_source,
     }
   else
+    local spring_messages = require('i18n.spring_messages')
+    local spring_sources, spring_locales = spring_messages.discover({ message_source = { spring_messages = {} } }, true)
+    if #spring_sources > 0 then
+      result.detected = true
+      result.is_i18n_project = true
+      result.framework_name = 'spring_messages'
+      result.suggestions = {
+        message_source = {
+          provider = 'spring_messages',
+          spring_messages = {},
+        },
+        locales = spring_locales,
+      }
+      M._cache = {
+        cwd = cwd,
+        result = result,
+        timestamp = now,
+      }
+      return result
+    end
+
     -- No framework detected, but check if it might still be an i18n project
     -- by looking for common locale directories
     local auto_detect = require('i18n.auto_detect')
@@ -322,6 +353,12 @@ function M.is_i18n_project(opts)
     if has_package(pkg_json, i18n_packages) then
       return true
     end
+  end
+
+  local spring_messages = require('i18n.spring_messages')
+  local sources = spring_messages.discover({ message_source = { spring_messages = {} } }, true)
+  if #sources > 0 then
+    return true
   end
 
   return false
