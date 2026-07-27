@@ -54,6 +54,19 @@ local function collect_patterns_from_sources(sources)
   return patterns
 end
 
+local function deduplicate_sources(sources)
+  local result = {}
+  local seen = {}
+  for _, source in ipairs(sources or {}) do
+    local pattern = type(source) == 'table' and source.pattern or source
+    if type(pattern) == 'string' and pattern ~= '' and not seen[pattern] then
+      seen[pattern] = true
+      table.insert(result, source)
+    end
+  end
+  return result
+end
+
 local function collect_patterns_from_files(files)
   local patterns = {}
   local seen = {}
@@ -112,6 +125,47 @@ M._translation_files = {}
 M._file_keys = {}
 -- key 引用计数（跨 locale/文件）
 M._key_refcount = {}
+-- Multiple Maven modules can define the same key. Keep candidates separate so
+-- a source buffer resolves its own module before falling back to the flat map.
+M._module_entries = {}
+
+local function nearest_module_root(path)
+  if type(path) ~= 'string' or path == '' then return nil end
+  local directory = vim.fn.fnamemodify(path, ':h')
+  local cwd = vim.loop.fs_realpath(vim.fn.getcwd()) or vim.fn.getcwd()
+  while directory and directory ~= '' do
+    if vim.loop.fs_stat(directory .. '/pom.xml') then
+      return vim.loop.fs_realpath(directory) or directory
+    end
+    if directory == cwd or directory == '/' then break end
+    local parent = vim.fn.fnamemodify(directory, ':h')
+    if parent == directory then break end
+    directory = parent
+  end
+  return nil
+end
+
+local function remove_module_entries_for_file(locale, abs_path)
+  local entries = M._module_entries[locale]
+  if not entries then return end
+  for key, modules in pairs(entries) do
+    for module_root, entry in pairs(modules) do
+      if entry.file == abs_path then
+        modules[module_root] = nil
+      end
+    end
+    if vim.tbl_isempty(modules) then entries[key] = nil end
+  end
+end
+
+local function module_entry(key, locale, context_path)
+  local entries = M._module_entries[locale]
+  if not entries or not context_path then return nil end
+  local candidates = entries[key]
+  if not candidates then return nil end
+  local root = nearest_module_root(context_path)
+  return root and candidates[root] or nil
+end
 
 -- 设置自动命令监控翻译文件的写入 / 删除 / 外部变更
 function M._setup_file_watchers()
@@ -774,13 +828,21 @@ end
 local function record_file_data(locale, abs_path, prefix, data, line_map, col_map, index_opts)
   M.translations[locale] = M.translations[locale] or {}
   M.meta[locale] = M.meta[locale] or {}
+  M._module_entries[locale] = M._module_entries[locale] or {}
+  remove_module_entries_for_file(locale, abs_path)
+  local module_root = nearest_module_root(abs_path)
   local key_set = {}
   for k, v in pairs(data) do
     local final_key = (prefix or "") .. k
     M.translations[locale][final_key] = v
     local line = line_map and line_map[k] or 1
     local col = (col_map and col_map[k]) or 1
-    M.meta[locale][final_key] = { file = abs_path, line = line, col = col }
+    local meta = { file = abs_path, line = line, col = col }
+    M.meta[locale][final_key] = meta
+    if module_root then
+      M._module_entries[locale][final_key] = M._module_entries[locale][final_key] or {}
+      M._module_entries[locale][final_key][module_root] = { value = v, file = abs_path, meta = meta }
+    end
     key_set[final_key] = true
   end
   set_file_keys(abs_path, key_set, index_opts)
@@ -833,6 +895,7 @@ M.load_translations = function()
   M._translation_files = {}
   M._file_keys = {}
   M._key_refcount = {}
+  M._module_entries = {}
   M.all_keys = {}
   local options = config.options
 
@@ -851,7 +914,14 @@ M.load_translations = function()
     end
 
     if detected_sources and #detected_sources > 0 then
-      sources = detected_sources
+      if detect_opts.merge_sources then
+        local merged_sources = {}
+        vim.list_extend(merged_sources, sources)
+        vim.list_extend(merged_sources, detected_sources)
+        sources = merged_sources
+      else
+        sources = detected_sources
+      end
       -- Store detected sources in options for reference
       options._detected_sources = detected_sources
 
@@ -892,6 +962,7 @@ M.load_translations = function()
     end
   end
 
+  sources = deduplicate_sources(sources)
   M._active_sources = sources
   local index_opts = { defer_index = true }
 
@@ -937,7 +1008,7 @@ local function build_nested_object(flat_table)
 end
 
 -- 获取特定语言的翻译
-M.get_translation = function(key, locale)
+M.get_translation = function(key, locale, context_path)
   local locales = config.options.locales
   locale = locale or (locales and locales[1])
   if not M.translations[locale] then
@@ -945,6 +1016,8 @@ M.get_translation = function(key, locale)
   end
 
   -- 1. Try exact match first (leaf node)
+  local scoped = module_entry(key, locale, context_path)
+  if scoped then return scoped.value end
   if M.translations[locale][key] then
     return M.translations[locale][key]
   end
@@ -973,11 +1046,14 @@ M.get_translation = function(key, locale)
 end
 
 -- 获取所有语言的翻译
-M.get_all_translations = function(key)
+M.get_all_translations = function(key, context_path)
   local result = {}
   for locale, translations in pairs(M.translations) do
     -- Try exact match first
-    if translations[key] then
+    local scoped = module_entry(key, locale, context_path)
+    if scoped then
+      result[locale] = scoped.value
+    elseif translations[key] then
       result[locale] = translations[key]
     else
       -- Try prefix match
@@ -1002,9 +1078,11 @@ M.get_all_translations = function(key)
 end
 
 -- 获取某个 key 在默认或指定语言下的位置信息 { file=..., line=... }
-M.get_key_location = function(key, locale)
+M.get_key_location = function(key, locale, context_path)
   locale = locale or (config.options.locales and config.options.locales[1])
   if not locale then return nil end
+  local scoped = module_entry(key, locale, context_path)
+  if scoped then return scoped.meta end
   local meta_locale = M.meta[locale]
   if meta_locale and meta_locale[key] then
     return meta_locale[key]
@@ -1052,6 +1130,9 @@ function M.reload_translation_buffer(abs_path, locale, bufnr)
 
   M.translations[locale] = M.translations[locale] or {}
   M.meta[locale] = M.meta[locale] or {}
+  M._module_entries[locale] = M._module_entries[locale] or {}
+  remove_module_entries_for_file(locale, abs_path)
+  local module_root = nearest_module_root(abs_path)
 
   -- 记录旧 meta（保留 mark_id 以避免行内插入时闪烁 / 丢失跟踪）
   local old_file_meta = {}
@@ -1074,10 +1155,16 @@ function M.reload_translation_buffer(abs_path, locale, bufnr)
     local line = line_map and line_map[k] or 1
     local col = (col_map and col_map[k]) or 1
     local old = old_file_meta[final_key]
+    local meta
     if old and old.mark_id then
-      M.meta[locale][final_key] = { file = abs_path, line = line, col = col, mark_id = old.mark_id }
+      meta = { file = abs_path, line = line, col = col, mark_id = old.mark_id }
     else
-      M.meta[locale][final_key] = { file = abs_path, line = line, col = col }
+      meta = { file = abs_path, line = line, col = col }
+    end
+    M.meta[locale][final_key] = meta
+    if module_root then
+      M._module_entries[locale][final_key] = M._module_entries[locale][final_key] or {}
+      M._module_entries[locale][final_key][module_root] = { value = v, file = abs_path, meta = meta }
     end
     key_set[final_key] = true
   end

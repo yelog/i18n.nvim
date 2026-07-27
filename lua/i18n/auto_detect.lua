@@ -59,6 +59,15 @@ local function extract_locale_from_filename(filename, known_locales)
   return nil
 end
 
+local function locale_template_from_filename(filename, locale)
+  local extension = filename:match('(%.[^.]+)$')
+  if not extension then return nil end
+  local stem = filename:sub(1, #filename - #extension)
+  local start_pos, end_pos = stem:lower():find(locale:lower(), 1, true)
+  if not start_pos then return nil end
+  return stem:sub(1, start_pos - 1) .. '{locales}' .. stem:sub(end_pos + 1) .. extension
+end
+
 -- Scan a directory and return entries
 local function scan_directory(dir_path)
   local entries = {}
@@ -122,7 +131,7 @@ local function find_locale_directories(root_dir, locale_dir_names, max_depth, cu
   for _, entry in ipairs(entries) do
     if entry.type == 'directory' then
       -- Skip common non-source directories
-      local skip_dirs = { 'node_modules', '.git', 'dist', 'build', '.next', '.nuxt', 'coverage', '__pycache__', '.cache' }
+       local skip_dirs = { 'node_modules', '.git', 'dist', 'build', 'target', '.next', '.nuxt', 'coverage', '__pycache__', '.cache' }
       local should_skip = false
       for _, skip in ipairs(skip_dirs) do
         if entry.name == skip then
@@ -190,7 +199,11 @@ local function analyze_locale_directory(dir_path, known_locales, extensions)
       if is_supported_extension(entry.name, extensions) then
         local locale = extract_locale_from_filename(entry.name, known_locales)
         if locale then
-          table.insert(locale_files, { entry = entry, locale = locale })
+          table.insert(locale_files, {
+            entry = entry,
+            locale = locale,
+            template = locale_template_from_filename(entry.name, locale),
+          })
         else
           table.insert(other_files, entry)
         end
@@ -229,16 +242,19 @@ local function analyze_locale_directory(dir_path, known_locales, extensions)
     -- Type: locale as file (e.g., locales/en.json, locales/zh.json)
     local detected_locales = {}
     local file_extension = nil
+    local file_template = nil
 
     for _, lf in ipairs(locale_files) do
       table.insert(detected_locales, lf.locale)
       file_extension = file_extension or get_extension(lf.entry.name)
+      file_template = file_template or lf.template
     end
 
     return {
       type = 'locale_as_file',
       detected_locales = detected_locales,
       file_extension = file_extension,
+      file_template = file_template,
     }
   end
 
@@ -257,6 +273,14 @@ local function generate_source_config(locale_dir_info, analysis, cwd)
   end
   -- Remove leading './' if present
   relative_path = relative_path:gsub('^%./', '')
+
+  -- File-based locale bundles already identify a concrete source directory.
+  -- Treating resource path segments as variables creates unwanted key prefixes.
+  if analysis.type == 'locale_as_file' then
+    return {
+      pattern = relative_path .. '/' .. (analysis.file_template or ('{locales}.' .. (analysis.file_extension or 'json'))),
+    }, analysis.detected_locales
+  end
 
   -- Analyze parent path to extract variables (like {bu} for business unit)
   local parent_relative = parent_path
@@ -344,8 +368,6 @@ local function generate_source_config(locale_dir_info, analysis, cwd)
       -- Single file per locale directory? Check for index file
       pattern_path = pattern_path .. '.' .. (analysis.module_extension or 'json')
     end
-  elseif analysis.type == 'locale_as_file' then
-    pattern_path = pattern_path .. '/{locales}.' .. (analysis.file_extension or 'json')
   end
 
   source_config.pattern = pattern_path
@@ -457,7 +479,9 @@ function M.should_auto_detect(config_opts)
   if not config_opts then return false end
 
   -- Project config sources take precedence
-  if config_opts._project_config_sources then
+  local auto_detect = config_opts.auto_detect
+  if config_opts._project_config_sources
+      and not (type(auto_detect) == 'table' and auto_detect.enabled and auto_detect.merge_sources) then
     return false
   end
 
@@ -604,6 +628,7 @@ function M.get_options(config_opts)
     known_locales = auto_detect.known_locales,
     extensions = auto_detect.extensions,
     max_depth = auto_detect.max_depth,
+    merge_sources = auto_detect.merge_sources == true,
   }
 end
 

@@ -26,7 +26,7 @@ function M.i18n_definition()
   if not key then return false end
   -- 使用当前显示语言（由 I18nNextLocale 切换）而不是固定第一个 locales
   local current_locale = display.get_current_locale and display.get_current_locale()
-  local loc = parser.get_key_location(key, current_locale)
+  local loc = parser.get_key_location(key, current_locale, vim.api.nvim_buf_get_name(0))
   if not loc then return false end
   return open_location(loc, key)
 end
@@ -116,7 +116,7 @@ function M.i18n_definition_next_locale()
       break
     end
     local candidate_locale = locales[next_index]
-    local loc_meta = parser.get_key_location(key, candidate_locale)
+    local loc_meta = parser.get_key_location(key, candidate_locale, vim.api.nvim_buf_get_name(0))
     if loc_meta then
       target_loc = loc_meta
       cur_locale = candidate_locale

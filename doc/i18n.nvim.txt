@@ -196,8 +196,9 @@ With custom settings: >
       root_dirs = { 'src', 'app' },           -- directories to scan
       locale_dir_names = { 'locales', 'i18n' }, -- locale directory names
       extensions = { 'json', 'ts' },           -- supported extensions
-      max_depth = 6,                           -- max scan depth
-      notify = true,                            -- show auto-detect summary
+       max_depth = 6,                           -- max scan depth
+       notify = true,                            -- show auto-detect summary
+       merge_sources = true,                     -- append to explicit sources
     },
   })
 <
@@ -207,6 +208,11 @@ Supported directory structures:
   Pattern A: Locale as filename
     src/locales/en.json    ->  sources: ["src/locales/{locales}.json"]
     src/locales/zh.json
+
+  Pattern A1: Spring message bundles
+    src/main/resources/i18n/messages_zh_CN.properties
+    src/main/resources/i18n/messages_en_US.properties
+      -> sources: ["src/main/resources/i18n/messages_{locales}.properties"]
 
   Pattern B: Locale as directory with module files
     src/locales/en/common.ts  ->  sources: [{ pattern: "...", prefix: "{module}." }]
@@ -223,7 +229,11 @@ How it works:
 
 Notes:
   - Auto-detect runs when `auto_detect = true` or `sources` is empty
-  - Auto-detect is skipped when a project config file defines `sources`
+  - Project config `sources` take precedence by default. Set
+    `auto_detect = { enabled = true, merge_sources = true }` to append discovered
+    sources, which is useful for Maven multi-module projects with shared sources.
+  - When multiple Maven modules define the same key, inline lookup and definition
+    jumps prefer the current buffer's nearest directory containing `pom.xml`.
   - Detected locales used only if `locales` not explicitly configured
   - Notifications are shown only when `auto_detect.notify = true` (default: off)
   - Access via `require('i18n.config').options._detected_sources`

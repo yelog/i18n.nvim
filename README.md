@@ -331,7 +331,9 @@ src/views/calendar/locales/en/events.ts
 
 **Notes:**
 - Auto-detect runs when `auto_detect = true` or when `sources` is empty/not configured.
-- Auto-detect is skipped when a project config file defines `sources` (even if `auto_detect = true`).
+- Set `auto_detect.merge_sources = true` with `enabled = true` to append discovered sources to explicit project-config `sources`.
+- Spring-style names such as `messages_zh_CN.properties` are detected as `messages_{locales}.properties`.
+- In Maven multi-module projects, inline lookup and definition jumps prefer the current buffer's nearest `pom.xml` module when modules define the same key.
 - Detected locales are used only if `locales` is not explicitly configured.
 - Notifications are shown only when `auto_detect.notify = true` (default: off).
 - Access detected configuration via `require('i18n.config').options._detected_sources`.

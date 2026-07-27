@@ -338,8 +338,9 @@ M.defaults = {
   --   locale_dir_names: names of locale directories (default: { 'locales', 'locale', 'i18n', 'lang', ... })
   --   known_locales   : known locale codes for detection (default: { 'en', 'zh', 'en-US', 'zh-CN', ... })
   --   extensions      : supported file extensions (default: { 'json', 'ts', 'js', 'yaml', 'yml', 'properties' })
-  --   max_depth       : max directory depth to scan (default: 6)
-  --   notify          : whether to show auto-detect notifications (default: false)
+   --   max_depth       : max directory depth to scan (default: 6)
+   --   merge_sources   : append detected sources to explicitly configured sources
+   --   notify          : whether to show auto-detect notifications (default: false)
   auto_detect = true,
   navigation = {},
   usage = {

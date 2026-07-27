@@ -553,7 +553,7 @@ M.refresh_buffer = function(bufnr)
       end
 
       local resolved_key = namespace.resolve(bufnr, key_info.key, line_num, key_info.key_start_pos or key_info.start_pos)
-      local translation = parser.get_translation(resolved_key, default_locale)
+      local translation = parser.get_translation(resolved_key, default_locale, vim.api.nvim_buf_get_name(bufnr))
 
       local show_translation_line = false
       if translation and should_show_translation(show_mode, is_cursor_line) then
@@ -670,7 +670,7 @@ M.show_popup = function()
   end
 
   -- 获取所有翻译
-  local translations = parser.get_all_translations(current_key)
+  local translations = parser.get_all_translations(current_key, vim.api.nvim_buf_get_name(0))
   if vim.tbl_isempty(translations) then
     vim.notify("No translations found for: " .. current_key, vim.log.levels.WARN)
     return false
