@@ -41,14 +41,27 @@ end
 local function yaml_basenames(content)
   local spring_indent, messages_indent
   for line in content:gmatch('[^\r\n]+') do
-    local indent, name = line:match('^(%s*)([%w%-_]+):%s*$')
+    local indent = line:match('^(%s*)')
+    local name = line:match('^%s*([%w%-_]+):%s*$')
     if name == 'spring' then
       spring_indent, messages_indent = #indent, nil
+    elseif spring_indent and #indent <= spring_indent then
+      spring_indent, messages_indent = nil, nil
     elseif name == 'messages' and spring_indent and #indent > spring_indent then
       messages_indent = #indent
-    elseif messages_indent and #indent > messages_indent then
-      local value = line:match('^%s*basename:%s*[\'"]?(.-)[\'"]?%s*$')
+    elseif messages_indent and #indent <= messages_indent then
+      messages_indent = nil
+    elseif messages_indent then
+      local value = line:match('^%s*basename:%s*(.-)%s*$')
       if value then
+        value = value:match('^%s*(.-)%s*$')
+        if value:sub(1, 1) == "'" then
+          value = value:match("^'(.*)'%s+#.*$") or value:match("^'(.*)'$") or value
+        elseif value:sub(1, 1) == '"' then
+          value = value:match('^"(.*)"%s+#.*$') or value:match('^"(.*)"$') or value
+        else
+          value = value:match('^(.-)%s+#.*$') or value
+        end
         local result = {}
         for basename in value:gmatch('[^,]+') do
           basename = basename:match('^%s*(.-)%s*$')
@@ -56,8 +69,6 @@ local function yaml_basenames(content)
         end
         return result
       end
-    elseif indent and #indent <= (spring_indent or 0) then
-      spring_indent, messages_indent = nil, nil
     end
   end
   return nil
