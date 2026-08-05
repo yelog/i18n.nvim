@@ -1,5 +1,14 @@
 local M = {}
 
+local excluded_dirs = {
+  ['.git'] = true,
+  node_modules = true,
+  target = true,
+}
+
+local discovery_cache = {}
+local cache_clear_scheduled = false
+
 local function realpath(path)
   return vim.loop.fs_realpath(path) or path
 end
@@ -7,6 +16,110 @@ end
 local function read_file(path)
   local ok, lines = pcall(vim.fn.readfile, path)
   return ok and table.concat(lines, '\n') or nil
+end
+
+local function is_absolute(path)
+  return path:match('^/') ~= nil or path:match('^%a:[/\\]') ~= nil
+end
+
+local function is_excluded(path)
+  for part in path:gsub('\\', '/'):gmatch('[^/]+') do
+    if excluded_dirs[part] then return true end
+  end
+  return false
+end
+
+local function normalize_pom_files(root, paths)
+  local files, seen = {}, {}
+  root = realpath(root)
+  for _, path in ipairs(paths or {}) do
+    if type(path) == 'string' and path ~= '' then
+      local abs = is_absolute(path) and path or (root .. '/' .. path)
+      abs = realpath(abs)
+      local relative = abs:sub(1, #root + 1) == root .. '/' and abs:sub(#root + 2) or path
+      if not is_excluded(relative) and not seen[abs] then
+        seen[abs] = true
+        table.insert(files, abs)
+      end
+    end
+  end
+  table.sort(files)
+  return files
+end
+
+local function find_poms_with_rg(root)
+  if vim.fn.executable('rg') ~= 1 then return nil end
+  local output = vim.fn.systemlist({
+    'rg', '--files', '--hidden',
+    '-g', 'pom.xml',
+    '-g', '!.git',
+    '-g', '!node_modules',
+    '-g', '!target',
+    root,
+  })
+  if vim.v.shell_error > 1 then return nil end
+  return normalize_pom_files(root, output)
+end
+
+local function find_poms_with_git(root)
+  if vim.fn.executable('git') ~= 1 then return nil end
+  local output = vim.fn.systemlist({
+    'git', '-C', root, 'ls-files', '--cached', '--others', '--exclude-standard',
+    '--', 'pom.xml', '**/pom.xml',
+  })
+  if vim.v.shell_error ~= 0 then return nil end
+  return normalize_pom_files(root, output)
+end
+
+local function find_poms_with_lua(root)
+  local files = {}
+  local function scan(dir)
+    local handle = vim.loop.fs_scandir(dir)
+    if not handle then return end
+    while true do
+      local name, entry_type = vim.loop.fs_scandir_next(handle)
+      if not name then break end
+      local path = dir .. '/' .. name
+      if entry_type == 'directory' and not excluded_dirs[name] then
+        scan(path)
+      elseif entry_type == 'file' and name == 'pom.xml' then
+        table.insert(files, path)
+      end
+    end
+  end
+  scan(root)
+  return normalize_pom_files(root, files)
+end
+
+local function find_pom_files(root)
+  return find_poms_with_rg(root) or find_poms_with_git(root) or find_poms_with_lua(root)
+end
+
+local function copy_list(items)
+  local result = {}
+  for _, item in ipairs(items or {}) do
+    if type(item) == 'table' then
+      local copy = {}
+      for key, value in pairs(item) do copy[key] = value end
+      table.insert(result, copy)
+    else
+      table.insert(result, item)
+    end
+  end
+  return result
+end
+
+local function cache_result(key, descriptors, locales)
+  discovery_cache[key] = {
+    descriptors = copy_list(descriptors),
+    locales = copy_list(locales),
+  }
+  if cache_clear_scheduled then return end
+  cache_clear_scheduled = true
+  vim.schedule(function()
+    discovery_cache = {}
+    cache_clear_scheduled = false
+  end)
 end
 
 local function is_spring_project(root)
@@ -137,8 +250,14 @@ end
 function M.discover(options, require_spring)
   local spring_opts = ((options.message_source or {}).spring_messages) or {}
   local resource_dir = spring_opts.resource_root or 'src/main/resources'
+  local root = realpath(vim.fn.getcwd())
+  local cache_key = table.concat({ root, resource_dir, tostring(require_spring == true) }, '\n')
+  local cached = discovery_cache[cache_key]
+  if cached then
+    return copy_list(cached.descriptors), copy_list(cached.locales)
+  end
   local descriptors, locale_set = {}, {}
-  for _, pom in ipairs(vim.fn.globpath(vim.fn.getcwd(), '**/pom.xml', false, true)) do
+  for _, pom in ipairs(find_pom_files(root)) do
     local module_root = realpath(vim.fn.fnamemodify(pom, ':h'))
     if not module_root:find('/target/', 1, true) and (not require_spring or is_spring_project(module_root)) then
       local resource_root = module_root .. '/' .. resource_dir
@@ -159,7 +278,8 @@ function M.discover(options, require_spring)
   local locales = {}
   for locale in pairs(locale_set) do table.insert(locales, locale) end
   table.sort(locales)
-  return descriptors, locales
+  cache_result(cache_key, descriptors, locales)
+  return copy_list(descriptors), copy_list(locales)
 end
 
 return M

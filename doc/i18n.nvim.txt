@@ -260,6 +260,10 @@ from application/bootstrap properties or YAML and otherwise uses `messages`.
 Each lookup is strictly isolated to the current buffer's nearest `pom.xml`
 module. Missing keys do not fall back to parent or sibling modules.
 
+Maven module discovery uses ripgrep when available, then Git, then a built-in
+filesystem scanner. Ripgrep and Git respect project ignore rules. All discovery
+methods skip `.git`, `node_modules`, and `target` directories.
+
 ------------------------------------------------------------------------------
 NAMESPACE RESOLVER                                   *i18n.nvim-namespace*
 

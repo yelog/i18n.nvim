@@ -362,6 +362,11 @@ Spring message lookups are always isolated to the current buffer's nearest
 Maven module. A key absent from that module returns no translation; sibling and
 parent modules are never used as fallbacks.
 
+Maven module discovery uses ripgrep when available, falls back to Git, and then
+uses a built-in filesystem scanner for non-Git projects. Ripgrep and Git respect
+project ignore rules; every strategy skips `.git`, `node_modules`, and `target`
+directories so auto-detection does not traverse dependency or build output.
+
 ### 🔧 Namespace Resolver (React i18next / Vue i18n)
 
 For frameworks like **react-i18next** that use `useTranslation('namespace')` to scope translation keys, the plugin can automatically detect the namespace and prepend it to keys for lookup.
