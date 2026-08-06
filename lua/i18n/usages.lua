@@ -61,8 +61,6 @@ local async_scan = {
   request_id = 0,
   files = {},
   index = 1,
-  processed_since_refresh = 0,
-  refresh_interval = 40,
   time_budget_ns = 10 * 1000 * 1000, -- 10ms per batch
 }
 
@@ -1328,12 +1326,6 @@ local function process_async_batch(request_id)
       record_entries(file, entries, key_set, { defer_sort = true, sort_keys = async_scan.sort_keys })
     end
 
-    async_scan.processed_since_refresh = async_scan.processed_since_refresh + 1
-    if async_scan.processed_since_refresh >= async_scan.refresh_interval then
-      async_scan.processed_since_refresh = 0
-      schedule_display_refresh()
-    end
-
     if (vim.loop.hrtime() - start) >= async_scan.time_budget_ns then
       break
     end
@@ -1345,7 +1337,6 @@ local function process_async_batch(request_id)
     async_scan.active = false
     async_scan.files = {}
     async_scan.index = 1
-    async_scan.processed_since_refresh = 0
     local sort_keys = async_scan.sort_keys
     async_scan.sort_keys = nil
     sort_usages_for_keys(sort_keys)
@@ -1366,12 +1357,7 @@ function M.refresh_async(opts)
   async_scan.files = files
   async_scan.index = 1
   async_scan.active = true
-  async_scan.processed_since_refresh = 0
   async_scan.sort_keys = {}
-
-  if opts.refresh_interval and opts.refresh_interval > 0 then
-    async_scan.refresh_interval = opts.refresh_interval
-  end
 
   if opts.time_budget_ms and opts.time_budget_ms > 0 then
     async_scan.time_budget_ns = opts.time_budget_ms * 1000 * 1000
