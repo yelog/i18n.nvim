@@ -112,6 +112,21 @@ M._cache = {
 -- Cache TTL in seconds
 local CACHE_TTL = 60
 
+local function has_project_boundary(cwd)
+  local boundary_files = {
+    'package.json', 'pom.xml', 'build.gradle', 'build.gradle.kts',
+    '.git', '.i18nrc.json', '.i18nrc.lua', 'i18n.config.json',
+    'i18next.config.js', 'i18next.config.ts',
+  }
+  for _, name in ipairs(boundary_files) do
+    local path = cwd .. '/' .. name
+    if vim.fn.filereadable(path) == 1 or vim.fn.isdirectory(path) == 1 then
+      return true
+    end
+  end
+  return false
+end
+
 -- Read and parse package.json
 local function read_package_json(cwd)
   local path = cwd .. '/package.json'
@@ -219,7 +234,10 @@ function M.detect(opts)
 
     if name == 'spring-messages' then
       local spring_messages = require('i18n.spring_messages')
-      local bundles = spring_messages.discover({ message_source = { spring_messages = {} } }, true)
+      local bundles = spring_messages.discover({
+        cwd = cwd,
+        message_source = { spring_messages = {} },
+      }, true)
       if #bundles == 0 then
         matched = false
       end
@@ -264,37 +282,18 @@ function M.detect(opts)
       message_source = fw.message_source,
     }
   else
-    local spring_messages = require('i18n.spring_messages')
-    local spring_sources, spring_locales = spring_messages.discover({ message_source = { spring_messages = {} } }, true)
-    if #spring_sources > 0 then
-      result.detected = true
-      result.is_i18n_project = true
-      result.framework_name = 'spring_messages'
-      result.suggestions = {
-        message_source = {
-          provider = 'spring_messages',
-          spring_messages = {},
-        },
-        locales = spring_locales,
-      }
-      M._cache = {
-        cwd = cwd,
-        result = result,
-        timestamp = now,
-      }
-      return result
-    end
-
     -- No framework detected, but check if it might still be an i18n project
     -- by looking for common locale directories
-    local auto_detect = require('i18n.auto_detect')
-    local sources, locales = auto_detect.detect({ root_dirs = { '.' }, max_depth = 3 })
-    if sources and #sources > 0 then
-      result.is_i18n_project = true
-      result.suggestions = {
-        sources = sources,
-        locales = locales,
-      }
+    if has_project_boundary(cwd) then
+      local auto_detect = require('i18n.auto_detect')
+      local sources, locales = auto_detect.detect({ root_dirs = { '.' }, max_depth = 3 })
+      if sources and #sources > 0 then
+        result.is_i18n_project = true
+        result.suggestions = {
+          sources = sources,
+          locales = locales,
+        }
+      end
     end
   end
 
@@ -355,10 +354,13 @@ function M.is_i18n_project(opts)
     end
   end
 
-  local spring_messages = require('i18n.spring_messages')
-  local sources = spring_messages.discover({ message_source = { spring_messages = {} } }, true)
-  if #sources > 0 then
-    return true
+  if vim.fn.filereadable(cwd .. '/pom.xml') == 1 then
+    local spring_messages = require('i18n.spring_messages')
+    local sources = spring_messages.discover({
+      cwd = cwd,
+      message_source = { spring_messages = {} },
+    }, true)
+    if #sources > 0 then return true end
   end
 
   return false

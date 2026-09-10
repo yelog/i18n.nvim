@@ -18,6 +18,10 @@ local function read_file(path)
   return ok and table.concat(lines, '\n') or nil
 end
 
+local function has_root_pom(root)
+  return vim.fn.filereadable(root .. '/pom.xml') == 1
+end
+
 local function is_absolute(path)
   return path:match('^/') ~= nil or path:match('^%a:[/\\]') ~= nil
 end
@@ -248,9 +252,17 @@ local function inferred_bundle_descriptors(module_root, resource_root)
 end
 
 function M.discover(options, require_spring)
+  options = options or {}
   local spring_opts = ((options.message_source or {}).spring_messages) or {}
   local resource_dir = spring_opts.resource_root or 'src/main/resources'
-  local root = realpath(vim.fn.getcwd())
+  local root = realpath(options.cwd or vim.fn.getcwd())
+
+  -- Do not recursively inspect arbitrary roots such as the user's home. A
+  -- Maven root is required for both automatic and explicit Spring discovery.
+  if not has_root_pom(root) then
+    return {}, {}
+  end
+
   local cache_key = table.concat({ root, resource_dir, tostring(require_spring == true) }, '\n')
   local cached = discovery_cache[cache_key]
   if cached then

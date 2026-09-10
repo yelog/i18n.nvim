@@ -362,6 +362,12 @@ Spring message lookups are always isolated to the current buffer's nearest
 Maven module. A key absent from that module returns no translation; sibling and
 parent modules are never used as fallbacks.
 
+Automatic Spring detection only scans when the current working directory is a
+Maven root containing `pom.xml`; it does not recursively search arbitrary
+workspace directories such as `~`. Automatic generic locale detection is also
+restricted to recognizable project boundaries such as `package.json`, `pom.xml`,
+`.git`, or an i18n config file.
+
 Maven module discovery uses ripgrep when available, falls back to Git, and then
 uses a built-in filesystem scanner for non-Git projects. Ripgrep and Git respect
 project ignore rules; every strategy skips `.git`, `node_modules`, and `target`

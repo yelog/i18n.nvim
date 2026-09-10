@@ -260,6 +260,12 @@ from application/bootstrap properties or YAML and otherwise uses `messages`.
 Each lookup is strictly isolated to the current buffer's nearest `pom.xml`
 module. Missing keys do not fall back to parent or sibling modules.
 
+Automatic Spring detection is bounded to the current working directory when it
+contains a root `pom.xml`; it does not recursively search arbitrary workspace
+directories such as the user's home directory. Automatic generic locale
+detection is also restricted to recognizable project boundaries such as
+`package.json`, `pom.xml`, `.git`, or an i18n configuration file.
+
 Maven module discovery uses ripgrep when available, then Git, then a built-in
 filesystem scanner. Ripgrep and Git respect project ignore rules. All discovery
 methods skip `.git`, `node_modules`, and `target` directories.

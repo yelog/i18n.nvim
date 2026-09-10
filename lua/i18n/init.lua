@@ -402,15 +402,16 @@ local function setup_activation_hooks(activation_mode)
       M._activation_pending = true
 
       vim.schedule(function()
-        if M._activated then
-          M._activation_pending = false
-          return
-        end
-
-        if get_framework().is_i18n_project() then
-          do_activate({ silent = true })
-        end
+        local ok, err = xpcall(function()
+          if M._activated then return end
+          if get_framework().is_i18n_project() then
+            do_activate({ silent = true })
+          end
+        end, debug.traceback)
         M._activation_pending = false
+        if not ok then
+          vim.notify('[i18n] Automatic activation failed: ' .. tostring(err), vim.log.levels.WARN)
+        end
       end)
     end
 
@@ -435,9 +436,14 @@ local function setup_activation_hooks(activation_mode)
       if M._activated then return end
       if should_activate_for_buffer(bufnr) then
         vim.schedule(function()
-          if M._activated then return end
-          if get_framework().is_i18n_project() then
-            do_activate({ silent = true })
+          local ok, err = xpcall(function()
+            if M._activated then return end
+            if get_framework().is_i18n_project() then
+              do_activate({ silent = true })
+            end
+          end, debug.traceback)
+          if not ok then
+            vim.notify('[i18n] Lazy activation failed: ' .. tostring(err), vim.log.levels.WARN)
           end
         end)
       end
