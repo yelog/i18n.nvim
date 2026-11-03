@@ -67,6 +67,7 @@ Designed for mixed stacks and monorepos. Supports JSON, YAML, Java .properties, 
 
 - Neovim 0.8+.
 - Tree-sitter parsers for JS/TS/TSX/JSX/Vue if you parse those files.
+- Optional: the `yaml` Tree-sitter parser for nested YAML sources and accurate definition locations; otherwise YAML uses the legacy flat parser.
 - Optional: `rg` for faster usage scans (falls back to `git ls-files`).
 - Optional integrations: `ibhagwan/fzf-lua`, `nvim-telescope/telescope.nvim`, `folke/snacks.nvim`, `blink.cmp`, `nvim-cmp`.
 
@@ -540,9 +541,28 @@ require('i18n').setup(require('i18n').options)
 
 ## 🧠 How It Works
 
-- JSON/YAML/.properties files are read and decoded (.properties uses simple `key=value` parsing; YAML uses a simplified parser covering common scenarios).
+- JSON files are decoded and flattened; .properties uses simple `key=value` parsing.
+- YAML uses Tree-sitter when the `yaml` parser is available, with a legacy flat parser as a fallback.
 - JS/TS modules are parsed with Tree-sitter to find exported objects (supports `export default`, `module.exports`, named export objects like `export const messages = {...}`, optional `as const`, direct object literals, and nested objects). Parsed keys and string values are normalized and flattened.
 - Translations are merged into an internal table keyed by language and dot-separated keys.
+
+### YAML sources
+
+Install the `yaml` Tree-sitter parser to resolve nested YAML keys. For example, configure `sources = { 'src/locales/{locales}.yaml' }` and use:
+
+```yaml
+some_nested:
+  config:
+    key: 'This is a nested key'
+```
+
+The translation is available as `t('some_nested.config.key')`. Block and flow mappings are flattened, and definition jumps use the key's actual line and byte column, including blank lines and quoted keys.
+
+Plain, single-quoted, and double-quoted scalar values are supported, including string escapes and multiline folding. Literal (`|`) and folded (`>`) blocks support indentation and trailing-newline indicators (`+` / `-`). Plain numbers, booleans, and `null` retain their string spelling; entries without a value are skipped.
+
+Sequences, aliases/merge entries, complex keys, and tagged values are skipped. This is a translation reader, not a complete YAML loader. With Tree-sitter, invalid YAML edits leave the last successfully parsed buffer index intact.
+
+If the `yaml` parser cannot be loaded, the legacy parser retains its limited flat `key: value` support. Nested paths and YAML scalar decoding require the Tree-sitter parser.
 
 ## 📗 Examples
 

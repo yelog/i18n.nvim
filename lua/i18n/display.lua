@@ -445,7 +445,9 @@ M.refresh_buffer = function(bufnr)
           parse_success = false
         end
       end
-      pcall(vim.api.nvim_buf_set_var, bufnr, 'i18n_last_parsed_tick', changedtick)
+      if parse_success then
+        pcall(vim.api.nvim_buf_set_var, bufnr, 'i18n_last_parsed_tick', changedtick)
+      end
     end
 
     -- 如果解析失败（例如 JSON 尚未完成输入），清空旧的行尾翻译以避免错位，然后返回
@@ -458,11 +460,13 @@ M.refresh_buffer = function(bufnr)
     end
 
     local meta_tbl = parser.meta[file_locale] or {}
+    local yaml_reparsed = last_tick ~= changedtick and abs_path:match('%.ya?ml$')
 
     -- 先基于已存在的 key 位置 extmark（若有）更新行号，确保插入 / 删除行后不漂移
     for full_key, meta in pairs(meta_tbl) do
       if meta.file == abs_path then
-        if meta.mark_id then
+        -- YAML 重新解析后使用准确坐标，避免整段替换后旧 mark 覆盖新位置。
+        if meta.mark_id and not yaml_reparsed then
           local pos = vim.api.nvim_buf_get_extmark_by_id(bufnr, keypos_ns, meta.mark_id, {})
           if pos and pos[1] then
             meta.line = pos[1] + 1
@@ -483,7 +487,7 @@ M.refresh_buffer = function(bufnr)
             -- 若超出行长，放在行尾（extmark col 允许等于行长表示 EOL 位置）
             col = line_len + 1
           end
-          local id = vim.api.nvim_buf_set_extmark(bufnr, keypos_ns, lnum - 1, col - 1, {})
+          local id = vim.api.nvim_buf_set_extmark(bufnr, keypos_ns, lnum - 1, col - 1, { id = meta.mark_id })
           meta.line = lnum
           meta.col = col
           meta.mark_id = id

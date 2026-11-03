@@ -2,6 +2,7 @@ local M = {}
 local config = require('i18n.config')
 local utils = require('i18n.utils')
 local spring_messages = require('i18n.spring_messages')
+local yaml = require('i18n.yaml')
 
 local function is_absolute_path(path)
   if not path or path == '' then return false end
@@ -431,18 +432,24 @@ end
 
 -- 解析 YAML 文件
 local function parse_yaml(content)
-  -- 简单的 YAML 解析，实际使用可能需要更复杂的解析器
+  content = content:gsub('\r\n', '\n')
+  local ok, tree = pcall(function()
+    local parser = vim.treesitter.get_string_parser(content, 'yaml')
+    return parser:parse()[1]
+  end)
+  if ok and tree then return yaml.parse(content, tree:root()) end
+
+  -- 未安装 YAML parser 时保留原有的扁平解析能力。
   local result = {}
   local line_map = {}
   local col_map = {}
-  local idx = 0
-  for line in content:gmatch("[^\r\n]+") do
-    idx = idx + 1
+  for idx, line in ipairs(vim.split(content, '\n', { plain = true })) do
     local key, value = line:match("^%s*([%w%.]+):%s*(.+)%s*$")
     if key and value then
       value = value:gsub("^['\"]", ""):gsub("['\"]$", "")
       result[key] = value
       line_map[key] = idx
+      col_map[key] = (line:find('%S')) or 1
     end
   end
   return result, line_map, col_map
@@ -1174,6 +1181,8 @@ function M.reload_translation_buffer(abs_path, locale, bufnr)
   if ext == "json" then
     data, line_map, col_map = parse_json(content)
   elseif ext == "yaml" or ext == "yml" then
+    -- Buffer lines omit the final newline, which YAML block chomping depends on.
+    if vim.bo[bufnr].endofline then content = content .. '\n' end
     data, line_map, col_map = parse_yaml(content)
   elseif ext == "properties" or ext == "prop" then
     data, line_map = parse_properties(content)

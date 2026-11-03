@@ -11,6 +11,7 @@ CONTENTS                                                *i18n.nvim-contents*
      5.1 Options Table ................... |i18n.nvim-options|
      5.2 Auto-detect Sources ............. |i18n.nvim-auto-detect|
      5.3 Namespace Resolver .............. |i18n.nvim-namespace|
+     5.4 YAML Sources .................... |i18n.nvim-yaml|
   6. Project Config File ................. |i18n.nvim-project|
   7. Commands ............................ |i18n.nvim-commands|
   8. Keymaps ............................. |i18n.nvim-keymaps|
@@ -65,7 +66,8 @@ Lazy.nvim example: >
 <
 
 Requires: Neovim 0.8+, proper Tree-sitter parsers for JS/TS if those sources
-are used.
+are used. The optional `yaml` parser enables nested YAML sources and accurate
+definition locations; without it, YAML uses the legacy flat parser.
 
 ==============================================================================
 QUICKSTART                                           *i18n.nvim-quickstart*
@@ -147,6 +149,32 @@ JS/TS sources are parsed with Tree-sitter. Supported translation object
 exports include `export default { ... }`, `module.exports = { ... }`, and
 named export objects such as `export const messages = { ... }` with an
 optional trailing `as const`.
+
+------------------------------------------------------------------------------
+YAML SOURCES                                             *i18n.nvim-yaml*
+
+Install the `yaml` Tree-sitter parser for nested YAML translations. Configure
+`sources = { 'src/locales/{locales}.yaml' }`, for example: >yaml
+  some_nested:
+    config:
+      key: 'This is a nested key'
+<
+This resolves `t('some_nested.config.key')`. Block and flow mappings are
+flattened, and definition jumps use the actual key position, including blank
+lines and quoted keys.
+
+Supported values: plain, single-quoted, and double-quoted scalars, string
+escapes, multiline folding, and literal (`|`) / folded (`>`) blocks with
+indentation and trailing-newline indicators (`+` / `-`). Plain numbers,
+booleans, and `null` retain their string spelling. Entries without a value
+are skipped.
+
+Sequences, aliases/merge entries, complex keys, and tagged values are skipped;
+this is not a complete YAML loader. With Tree-sitter, invalid YAML edits retain
+the last successfully parsed buffer index.
+
+If the `yaml` parser cannot be loaded, the legacy parser retains limited flat
+`key: value` support. Nested paths and scalar decoding require Tree-sitter.
 
 ------------------------------------------------------------------------------
 FUNC PATTERN                                       *i18n.nvim-func-pattern*
@@ -388,7 +416,8 @@ Function: >
 <
 
 Falls back gracefully if no key; combine with LSP (see keymaps above).
-Line numbers heuristic for non-TS/JS; Tree-sitter gives better accuracy.
+JS/TS and YAML (with the `yaml` parser) use Tree-sitter key positions. Other
+formats and the YAML fallback use heuristic positions. See |i18n.nvim-yaml|.
 Silence the "[i18n] No i18n key detected under cursor" warning by setting
 `usage = { notify_no_key = false }` in |i18n.nvim-config|.
 Skip large files with `usage = { max_file_size = 1024 * 1024 }`.
@@ -566,6 +595,8 @@ TROUBLESHOOTING                               *i18n.nvim-troubleshooting*
 
 No translations?  Check sources patterns & cwd.
 Missing JS/TS keys?  Ensure Tree-sitter parsers updated.
+Missing nested YAML keys?  Install the `yaml` Tree-sitter parser; see
+|i18n.nvim-yaml| for supported constructs and fallback behavior.
 Popup empty?  Cursor not on a recognized i18n call (see func_pattern).
 Wrong locale after switching?  Confirm locales order + call :I18nNextLocale.
 
